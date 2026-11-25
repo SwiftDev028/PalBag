@@ -4,6 +4,7 @@
   const products = window.PALBAG_PRODUCTS;
   const productMap = new Map(products.map((product) => [product.id, product]));
   const page = document.body.dataset.page || "home";
+  const pageBrand = document.body.dataset.brand || "BALENCIAGA";
   const money = new Intl.NumberFormat("ru-RU");
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const colorNames = {
@@ -19,9 +20,11 @@
     "на плечо": "На плечо",
     "мини-сумки": "Мини-сумки"
   };
+  const brands = [...new Set(products.map((product) => product.brand).filter(Boolean))].sort();
   const state = {
     catalog: {
       categories: new Set(new URLSearchParams(location.search).getAll("category")),
+      brands: new Set(new URLSearchParams(location.search).getAll("brand")),
       colors: new Set(),
       min: "",
       max: "",
@@ -65,8 +68,81 @@
     })[character]);
   }
 
+  function observeProductVideos() {
+    const videos = document.querySelectorAll("[data-product-video-player]");
+    if (!videos.length) return;
+    if (!("IntersectionObserver" in window)) {
+      videos.forEach((video) => video.closest(".product-gallery__video-frame")?.classList.add("is-fallback"));
+      return;
+    }
+
+    const observer = new IntersectionObserver((entries, currentObserver) => {
+      entries.forEach((entry) => {
+        const video = entry.target;
+        const frame = video.closest(".product-gallery__video-frame");
+        if (!entry.isIntersecting) {
+          video.pause();
+          return;
+        }
+        if (!video.dataset.sourceLoaded) {
+          if (!video.canPlayType('video/mp4; codecs="hvc1"')) {
+            frame?.classList.add("is-fallback");
+            currentObserver.unobserve(video);
+            return;
+          }
+          video.dataset.sourceLoaded = "true";
+          video.src = video.dataset.videoSrc;
+          video.load();
+        }
+        const playback = video.play();
+        if (playback) playback.catch(() => {
+          frame?.classList.add("is-fallback");
+          currentObserver.unobserve(video);
+        });
+      });
+    }, { rootMargin: "0px", threshold: 0.15 });
+
+    videos.forEach((video) => {
+      const frame = video.closest(".product-gallery__video-frame");
+      video.muted = true;
+      video.playsInline = true;
+      video.addEventListener("playing", () => frame?.classList.add("is-playing"), { once: true });
+      video.addEventListener("error", () => {
+        video.pause();
+        frame?.classList.add("is-fallback");
+        observer.unobserve(video);
+      }, { once: true });
+      observer.observe(video);
+    });
+  }
+
   function formatPrice(value) {
     return `${money.format(value)} ₽`;
+  }
+
+  function getSizeOptions(product) {
+    if (Array.isArray(product.sizes) && product.sizes.length) return product.sizes;
+    if (product.type === "tote") {
+      return [
+        { name: "Medium", price: product.price },
+        { name: "Large", price: product.price }
+      ];
+    }
+    return [{ name: "One size", price: product.price }];
+  }
+
+  function getDefaultSize(product) {
+    return getSizeOptions(product)[0].name;
+  }
+
+  function getProductPrice(product, size) {
+    return getSizeOptions(product).find((option) => option.name === size)?.price ?? product.price;
+  }
+
+  function getPriceLabel(product) {
+    const prices = getSizeOptions(product).map((option) => option.price);
+    const lowestPrice = Math.min(...prices);
+    return prices.some((price) => price !== lowestPrice) ? `от ${formatPrice(lowestPrice)}` : formatPrice(lowestPrice);
   }
 
   function pluralRu(count, forms) {
@@ -97,16 +173,20 @@
   function getCart() {
     return readStorage("palbag-cart", [], (value) => Array.isArray(value))
       .filter((entry) => entry && productMap.has(entry.id) && Number.isInteger(entry.quantity) && entry.quantity > 0)
-      .map((entry) => ({
-        id: entry.id,
-        quantity: entry.quantity,
-        color: typeof entry.color === "string" && entry.color.startsWith("#")
-          ? entry.color
-          : productMap.get(entry.id).color,
-        size: entry.size === "Medium" || entry.size === "Large" || entry.size === "One size"
+      .map((entry) => {
+        const product = productMap.get(entry.id);
+        const size = getSizeOptions(product).some((option) => option.name === entry.size)
           ? entry.size
-          : productMap.get(entry.id).type === "tote" ? "Medium" : "One size"
-      }));
+          : getDefaultSize(product);
+        return {
+          id: entry.id,
+          quantity: entry.quantity,
+          color: typeof entry.color === "string" && entry.color.startsWith("#")
+            ? entry.color
+            : product.color || "",
+          size
+        };
+      });
   }
 
   function getFavorites() {
@@ -151,21 +231,32 @@
     </div>`;
   }
 
+  function productVisual(product, index = 0, alt = "") {
+    if (!Array.isArray(product.images) || !product.images.length) {
+      return bagArt(product.type, product.color, product.background);
+    }
+    const source = product.images[Math.min(index, product.images.length - 1)];
+    return `<img class="product-photo" src="${escapeHTML(source)}" alt="${escapeHTML(alt)}" loading="${index === 0 ? "eager" : "lazy"}" decoding="async">`;
+  }
+
   function productCard(product) {
     const favorite = getFavorites().includes(product.id);
+    const sizeOptions = getSizeOptions(product);
+    const hasVariantPrices = new Set(sizeOptions.map((option) => option.price)).size > 1;
+    const productLabel = product.variantLabel ? `${product.name} — ${product.variantLabel}` : product.name;
     return `<article class="product-card">
       <div class="product-card__visual">
-        <a class="product-card__image" href="product.html?id=${encodeURIComponent(product.id)}" aria-label="Открыть товар «${escapeHTML(product.name)}»">
-          ${bagArt(product.type, product.color, product.background)}
-          <span class="product-card__alternate">${bagArt(product.type, product.color, "#e4ddd2")}</span>
+        <a class="product-card__image" href="product.html?id=${encodeURIComponent(product.id)}" aria-label="Открыть товар «${escapeHTML(productLabel)}»">
+          ${productVisual(product, 0, productLabel)}
+          <span class="product-card__alternate">${product.images?.length > 1 ? productVisual(product, 1, `${productLabel} — дополнительный вид`) : bagArt(product.type, product.color, "#e4ddd2")}</span>
         </a>
         ${product.badge ? `<span class="product-card__badge">${escapeHTML(product.badge)}</span>` : ""}
         <button class="icon-button product-card__favorite ${favorite ? "is-active" : ""}" type="button" data-favorite-toggle="${product.id}" aria-label="${favorite ? "Убрать из" : "Добавить в"} избранное" aria-pressed="${favorite}">
           ${icons.heart}
         </button>
         <div class="product-card__actions">
-          <button type="button" data-add-cart="${product.id}" data-add-color="${product.color}" data-add-size="${product.type === "tote" ? "Medium" : "One size"}">В корзину</button>
-          <button class="product-card__quick-view" type="button" data-quick-view="${product.id}" aria-label="Быстрый просмотр «${escapeHTML(product.name)}»">
+          <button type="button" data-add-cart="${product.id}" data-add-color="${escapeHTML(product.color || "")}" data-add-size="${getDefaultSize(product)}">В корзину</button>
+          <button class="product-card__quick-view" type="button" data-quick-view="${product.id}" aria-label="Быстрый просмотр «${escapeHTML(productLabel)}»">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/></svg>
           </button>
         </div>
@@ -173,24 +264,30 @@
       <div class="product-card__info">
         <div class="product-card__title-row">
           <a class="product-card__name" href="product.html?id=${encodeURIComponent(product.id)}">${escapeHTML(product.name)}</a>
-          <div class="product-card__meta" aria-label="Доступные цвета">${product.swatches.map((color) => `<span class="swatch" style="--swatch:${color}" title="${colorNames[color] || "Цвет"}"></span>`).join("")}</div>
+          ${product.swatches?.length ? `<div class="product-card__meta" aria-label="Доступные цвета">${product.swatches.map((color) => `<span class="swatch" style="--swatch:${color}" title="${colorNames[color] || "Цвет"}"></span>`).join("")}</div>` : ""}
         </div>
-        <span class="product-card__price">${formatPrice(product.price)}${product.oldPrice ? ` <span class="sale-price">${formatPrice(product.oldPrice)}</span>` : ""}</span>
+        <span class="product-card__price">${getPriceLabel(product)}${product.oldPrice ? ` <span class="sale-price">${formatPrice(product.oldPrice)}</span>` : ""}</span>
+        ${product.variantLabel ? `<span class="product-card__note">${escapeHTML(product.variantLabel)}</span>` : ""}
+        ${hasVariantPrices ? `<span class="product-card__note">${sizeOptions.map((option) => `${escapeHTML(option.name)} — ${formatPrice(option.price)}`).join(" · ")}</span>` : ""}
       </div>
     </article>`;
   }
 
   function quickViewMarkup(product) {
+    const sizes = getSizeOptions(product);
+    const hasVariantPrices = new Set(sizes.map((option) => option.price)).size > 1;
     return `<div class="quick-view-backdrop" data-quick-view-backdrop>
       <section class="quick-view" role="dialog" aria-modal="true" aria-labelledby="quick-view-title">
         <button class="icon-button quick-view__close" type="button" data-quick-view-close aria-label="Закрыть">${icons.close}</button>
-        <div class="quick-view__image">${bagArt(product.type, product.color, product.background)}</div>
+        <div class="quick-view__image">${productVisual(product, 0, product.name)}</div>
         <div class="quick-view__content">
-          <span class="eyebrow">${escapeHTML(categoryNames[product.category] || product.category)} · натуральная кожа</span>
+          <span class="eyebrow">${product.brand ? `${escapeHTML(product.brand)}${product.variantLabel ? ` · ${escapeHTML(product.variantLabel)}` : ""}` : `${escapeHTML(categoryNames[product.category] || product.category)} · натуральная кожа`}</span>
           <h2 id="quick-view-title">${escapeHTML(product.name)}</h2>
-          <p>${escapeHTML(product.description)}</p>
-          <strong>${formatPrice(product.price)}${product.oldPrice ? ` <del>${formatPrice(product.oldPrice)}</del>` : ""}</strong>
-          <button class="button" type="button" data-quick-view-add="${product.id}" data-add-color="${product.color}" data-add-size="${product.type === "tote" ? "Medium" : "One size"}">Добавить в корзину</button>
+          ${product.description ? `<p>${escapeHTML(product.description)}</p>` : ""}
+          ${product.packageContents ? `<p>Материал: ${escapeHTML(product.material)} · Комплектация: ${escapeHTML(product.packageContents)}</p>` : ""}
+          <strong>${getPriceLabel(product)}${product.oldPrice ? ` <del>${formatPrice(product.oldPrice)}</del>` : ""}</strong>
+          ${hasVariantPrices ? `<p class="quick-view__variant-note">Добавится размер ${escapeHTML(getDefaultSize(product))}. Другой размер можно выбрать на странице товара.</p>` : ""}
+          <button class="button" type="button" data-quick-view-add="${product.id}" data-add-color="${product.color}" data-add-size="${getDefaultSize(product)}">Добавить в корзину</button>
           <a class="text-link" href="product.html?id=${encodeURIComponent(product.id)}">Подробнее о модели ${icons.arrow}</a>
         </div>
       </section>
@@ -233,6 +330,8 @@
             <a href="catalog.html">Каталог</a>
             <a href="catalog.html?sort=new">Новинки</a>
             <a href="catalog.html?sort=popular">Бестселлеры</a>
+            <a href="balenciaga.html">BALENCIAGA</a>
+            <a href="chanel.html">CHANEL</a>
           </nav>
           <a class="brand" href="index.html" aria-label="PalBag — на главную"><span>PAL</span><strong>BAG</strong></a>
           <div class="header-right">
@@ -264,6 +363,8 @@
           <span class="eyebrow">PalBag · коллекция 2026</span>
           <div class="menu-links">
             <a href="catalog.html">Каталог</a>
+            <a href="balenciaga.html">BALENCIAGA</a>
+            <a href="chanel.html">CHANEL</a>
             <a href="about.html">О бренде</a>
             <a href="delivery.html">Доставка и оплата</a>
             <a href="contacts.html">Контакты</a>
@@ -295,6 +396,8 @@
           <a href="catalog.html?sort=popular">Бестселлеры</a>
           <a href="catalog.html?category=кросс-боди">Кросс-боди</a>
           <a href="catalog.html?category=тоуты">Тоуты</a>
+          <a href="balenciaga.html">BALENCIAGA</a>
+          <a href="chanel.html">CHANEL</a>
         </nav>
         <nav class="footer-column" aria-label="Покупателям">
           <h2>Покупателям</h2>
@@ -398,6 +501,16 @@
           <span class="category-card__label"><span>${category.title}</span><span>${String(index + 1).padStart(2, "0")}</span></span>
         </a>`).join("")}</div>
       </section>
+      <section class="brand-editorial brand-editorial--home wrap reveal">
+        <div class="brand-editorial__media"><img src="assets/balenciaga/lookbook-carry-all-01.jpg" alt="Модель с сумкой BALENCIAGA Bel Air Carry All Bag" loading="lazy"></div>
+        <div class="brand-editorial__copy">
+          <span class="eyebrow">Дизайнерские марки · BALENCIAGA</span>
+          <h2 class="section-title">BALENCIAGA</h2>
+          <p>Bel Air Carry All Bag — выразительный силуэт, продуманные детали и два размера на выбор.</p>
+          <a class="button" href="balenciaga.html">Открыть коллекцию ${icons.arrow}</a>
+          <a class="text-link" href="chanel.html">Коллекция CHANEL ${icons.arrow}</a>
+        </div>
+      </section>
       <section class="home-section wrap reveal">
         <div class="section-head">
           <div class="section-head__copy"><span class="eyebrow">Выбор покупателей</span><h2 class="section-title">Бестселлеры PalBag</h2></div>
@@ -469,8 +582,13 @@
 
   function filterMarkup() {
     const selectedCategories = state.catalog.categories;
+    const selectedBrands = state.catalog.brands;
     const selectedColors = state.catalog.colors;
     return `<div class="filter-groups">
+      ${brands.length ? `<details class="filter-group" open>
+        <summary>Бренд</summary>
+        <div class="filter-options">${brands.map((brand) => `<label class="filter-check"><input class="filter-input" type="checkbox" data-filter-brand="${escapeHTML(brand)}" ${selectedBrands.has(brand) ? "checked" : ""}>${escapeHTML(brand)}</label>`).join("")}</div>
+      </details>` : ""}
       <details class="filter-group" open>
         <summary>Категория</summary>
         <div class="filter-options">${Object.entries(categoryNames).map(([key, label]) => `<label class="filter-check"><input class="filter-input" type="checkbox" data-filter-category="${key}" ${selectedCategories.has(key) ? "checked" : ""}>${label}</label>`).join("")}</div>
@@ -499,22 +617,32 @@
   function catalogMarkup() {
     const filtered = products.filter((product) => {
       const matchesCategory = !state.catalog.categories.size || state.catalog.categories.has(product.category);
+      const matchesBrand = !state.catalog.brands.size || state.catalog.brands.has(product.brand);
       const matchesColor = !state.catalog.colors.size || product.swatches.some((color) => state.catalog.colors.has(color));
-      const matchesMin = !state.catalog.min || product.price >= Number(state.catalog.min);
-      const matchesMax = !state.catalog.max || product.price <= Number(state.catalog.max);
+      const matchesPrice = getSizeOptions(product).some((option) =>
+        (!state.catalog.min || option.price >= Number(state.catalog.min))
+        && (!state.catalog.max || option.price <= Number(state.catalog.max))
+      );
       const term = state.catalog.search.trim().toLocaleLowerCase("ru");
-      const matchesSearch = !term || `${product.name} ${product.category} ${product.colorName}`.toLocaleLowerCase("ru").includes(term);
-      return matchesCategory && matchesColor && matchesMin && matchesMax && matchesSearch;
+      const searchableText = [product.name, product.brand, categoryNames[product.category] || product.category, product.colorName, product.material]
+        .filter(Boolean)
+        .join(" ")
+        .toLocaleLowerCase("ru");
+      const matchesSearch = !term || searchableText.includes(term);
+      return matchesCategory && matchesBrand && matchesColor && matchesPrice && matchesSearch;
     });
     const sorted = [...filtered];
     if (state.catalog.sort === "price-asc") sorted.sort((a, b) => a.price - b.price);
     if (state.catalog.sort === "price-desc") sorted.sort((a, b) => b.price - a.price);
     if (state.catalog.sort === "name") sorted.sort((a, b) => a.name.localeCompare(b.name, "ru"));
     if (state.catalog.sort === "new") sorted.sort((a, b) => Number(b.badge === "Новинка") - Number(a.badge === "Новинка"));
+    const selectedBrand = state.catalog.brands.size === 1 ? [...state.catalog.brands][0] : "";
     const intro = state.catalog.search
       ? `<span class="eyebrow">Результаты поиска</span><h1 class="page-title">«${escapeHTML(state.catalog.search)}»</h1><p class="lead">Найдено: ${sorted.length}</p>`
-      : `<span class="eyebrow">Коллекция PalBag</span><h1 class="page-title">Все сумки</h1><p class="lead">Натуральная кожа, чистые линии и формы для каждого дня.</p>`;
-    const activeFilters = state.catalog.categories.size + state.catalog.colors.size;
+      : selectedBrand
+        ? `<span class="eyebrow">Коллекция бренда</span><h1 class="page-title">${escapeHTML(selectedBrand)}</h1><p class="lead">Модели бренда в каталоге PalBag.</p>`
+        : `<span class="eyebrow">Коллекция PalBag</span><h1 class="page-title">Все сумки</h1><p class="lead">Натуральная кожа, чистые линии и формы для каждого дня.</p>`;
+    const activeFilters = state.catalog.categories.size + state.catalog.brands.size + state.catalog.colors.size;
     return `<div class="wrap">
       <nav class="breadcrumb" aria-label="Хлебные крошки"><a href="index.html">Главная</a><span aria-hidden="true">/</span><span aria-current="page">Каталог</span></nav>
       <header class="catalog-intro"><div class="catalog-intro__copy">${intro}</div><span class="eyebrow">${sorted.length} ${pluralRu(sorted.length, ["модель", "модели", "моделей"])}</span></header>
@@ -543,6 +671,16 @@
             </div>
           </div>
           <div class="catalog-products ${state.catalog.columns === 4 ? "is-four-columns" : ""}">${sorted.length ? sorted.map(productCard).join("") : `<div class="empty-state"><h2>Ничего не найдено</h2><p>Попробуйте изменить запрос или сбросить фильтры.</p><button class="button button--outline button--small" type="button" data-filter-reset>Сбросить фильтры</button></div>`}</div>
+          <div class="brand-catalog-promo">
+            <img src="assets/balenciaga/lookbook-carry-all-02.jpg" alt="" loading="lazy">
+            <div><span class="eyebrow">BALENCIAGA</span><p>Откройте отдельную коллекцию бренда.</p></div>
+            <a class="text-link" href="balenciaga.html">Перейти в BALENCIAGA ${icons.arrow}</a>
+          </div>
+          <div class="brand-catalog-promo">
+            <img src="assets/chanel/chanel-maxi-flap-01-front.jpeg" alt="" loading="lazy">
+            <div><span class="eyebrow">CHANEL</span><p>Откройте отдельную коллекцию бренда.</p></div>
+            <a class="text-link" href="chanel.html">Перейти в CHANEL ${icons.arrow}</a>
+          </div>
           <div class="promo-card"><div><span class="eyebrow">Внимание к каждой детали</span><h2>Выберите сумку для своего ритма</h2></div><a class="text-link" href="about.html">О PalBag ${icons.arrow}</a></div>
         </section>
       </div>
@@ -559,9 +697,71 @@
       </aside>`;
   }
 
+  function productGalleryMarkup(product, color) {
+    if (product.videoUrl) {
+      const fallbackImage = product.videoFallbackImage || product.images[0];
+      return `<div class="product-gallery" aria-label="Фото и видео товара">
+        <div class="product-gallery__main">
+          <div class="product-gallery__video-frame">
+            <img class="product-gallery__video-fallback" src="${escapeHTML(fallbackImage)}" alt="${escapeHTML(product.name)}" decoding="async">
+            <video class="product-gallery__video-player" data-product-video-player data-video-src="${escapeHTML(product.videoUrl)}" muted loop playsinline preload="none" poster="${escapeHTML(fallbackImage)}" aria-label="${escapeHTML(product.name)} — видео"></video>
+          </div>
+          <span class="product-gallery__count">1 / ${product.images.length + 1}</span>
+        </div>
+        ${product.images.map((image, index) => `<div class="product-gallery__tile">${productVisual(product, index, `${product.name} — фото ${index + 1}`)}</div>`).join("")}
+      </div>`;
+    }
+    if (Array.isArray(product.images) && product.images.length) {
+      return `<div class="product-gallery" aria-label="Изображения товара">
+        <div class="product-gallery__main">
+          ${productVisual(product, 0, `${product.name} — вид спереди`)}
+          ${product.badge ? `<span class="product-gallery__badge">${escapeHTML(product.badge)}</span>` : ""}
+          <button class="product-gallery__zoom" type="button" data-gallery-zoom aria-label="Увеличить изображение">${icons.search}</button>
+          <span class="product-gallery__count">1 / ${product.images.length}</span>
+        </div>
+        ${product.images.slice(1).map((image, index) => `<div class="product-gallery__tile">${productVisual(product, index + 1, `${product.name} — вид ${index + 2}`)}</div>`).join("")}
+      </div>`;
+    }
+    return `<div class="product-gallery" aria-label="Изображения товара">
+      <div class="product-gallery__main">
+        ${bagArt(product.type, color, product.background)}
+        ${product.badge ? `<span class="product-gallery__badge">${escapeHTML(product.badge)}</span>` : ""}
+        <button class="product-gallery__zoom" type="button" data-gallery-zoom aria-label="Увеличить изображение">${icons.search}</button>
+        <span class="product-gallery__count">1 / 5</span>
+      </div>
+      <div class="product-gallery__tile">${bagArt(product.type, color, "#e4ddd2")}</div>
+      <div class="product-gallery__tile">${bagArt(product.type, color, "#ded6ca")}</div>
+      <div class="product-gallery__tile product-gallery__video">${bagArt(product.type, color, "#e8e2d8")}<button type="button" data-product-video aria-label="Запустить видеообзор">${icons.play}</button></div>
+      <div class="product-gallery__tile">${bagArt(product.type, color, "#e1dad0")}</div>
+    </div>`;
+  }
+
   function productMarkup(product) {
-    const color = state.selectedColor || product.color;
-    const size = state.selectedSize || (product.type === "tote" ? "Medium" : "One size");
+    const color = state.selectedColor || product.color || "";
+    const size = state.selectedSize || getDefaultSize(product);
+    const price = getProductPrice(product, size);
+    const sizeOptions = getSizeOptions(product);
+    const colorOptions = product.swatches || [];
+    const categoryLabel = product.category !== product.brand
+      ? categoryNames[product.category] || product.category
+      : "";
+    const specifications = product.minimalDetails
+      ? [["Материал", product.material], ["Комплектация", product.packageContents]]
+      : [
+          ["Материал", product.material],
+          ["Подкладка", "Текстиль"],
+          ["Фурнитура", product.hardware || "Металл золотистого оттенка"],
+          ["Размер", product.dimensions],
+          ["Длина ремня", product.strap],
+          ["Комплектация", product.packageContents],
+          ["Артикул", `PB-${product.id.toUpperCase()}`]
+        ];
+    const descriptionMarkup = product.description ? `<div>
+      <h2 class="section-title">Описание</h2>
+      <p>${escapeHTML(product.description)} Форма, материал и аккуратная отделка продуманы для ежедневного использования.</p>
+      <h3>Уход за изделием</h3>
+      <p>Протирать мягкой тканью, хранить в пыльнике, избегать воды и прямого солнца.</p>
+    </div>` : "";
     const relatedProducts = products
       .filter((item) => item.id !== product.id)
       .sort((a, b) => Number(b.category === product.category) - Number(a.category === product.category))
@@ -570,37 +770,26 @@
     return `<div class="wrap">
       <nav class="breadcrumb" aria-label="Хлебные крошки"><a href="index.html">Главная</a><span aria-hidden="true">/</span><a href="catalog.html">Каталог</a><span aria-hidden="true">/</span><span aria-current="page">${escapeHTML(product.name)}</span></nav>
       <div class="product-detail">
-        <div class="product-gallery" aria-label="Изображения товара">
-          <div class="product-gallery__main">
-            ${bagArt(product.type, color, product.background)}
-            ${product.badge ? `<span class="product-gallery__badge">${escapeHTML(product.badge)}</span>` : ""}
-            <button class="product-gallery__zoom" type="button" data-gallery-zoom aria-label="Увеличить изображение">${icons.search}</button>
-            <span class="product-gallery__count">1 / 5</span>
-          </div>
-          <div class="product-gallery__tile">${bagArt(product.type, color, "#e4ddd2")}</div>
-          <div class="product-gallery__tile">${bagArt(product.type, color, "#ded6ca")}</div>
-          <div class="product-gallery__tile product-gallery__video">${bagArt(product.type, color, "#e8e2d8")}<button type="button" data-product-video aria-label="Запустить видеообзор">${icons.play}</button></div>
-          <div class="product-gallery__tile">${bagArt(product.type, color, "#e1dad0")}</div>
-        </div>
+        ${productGalleryMarkup(product, color)}
         <section class="product-info">
-          <span class="eyebrow">${escapeHTML(categoryNames[product.category] || product.category)}</span>
+          <span class="eyebrow">${product.brand ? escapeHTML(product.brand) : ""}${categoryLabel ? `${product.brand ? " · " : ""}${escapeHTML(categoryLabel)}` : ""}${product.variantLabel ? ` · ${escapeHTML(product.variantLabel)}` : ""}</span>
           <h1>${escapeHTML(product.name)}</h1>
-          <div class="product-rating"><span class="product-rating__stars">★★★★★</span><span>4,9 · 18 отзывов</span></div>
-          <div class="product-detail__price"><strong>${formatPrice(product.price)}</strong>${product.oldPrice ? `<del>${formatPrice(product.oldPrice)}</del>` : ""}</div>
-          <p class="product-description">${escapeHTML(product.description)}</p>
-          <div class="product-option">
+          ${product.showDemoRating === false ? "" : `<div class="product-rating"><span class="product-rating__stars">★★★★★</span><span>4,9 · 18 отзывов</span></div>`}
+          <div class="product-detail__price"><strong>${formatPrice(price)}</strong>${product.oldPrice ? `<del>${formatPrice(product.oldPrice)}</del>` : ""}</div>
+          ${product.description ? `<p class="product-description">${escapeHTML(product.description)}</p>` : ""}
+          ${colorOptions.length ? `<div class="product-option">
             <div class="product-option__head"><strong>Цвет</strong><span data-color-name>${colorNames[color] || product.colorName}</span></div>
-            <div class="product-swatches">${product.swatches.map((swatch) => `<button class="swatch swatch--large ${swatch === color ? "swatch--selected" : ""}" type="button" data-select-color="${swatch}" aria-label="${colorNames[swatch] || "Цвет"}" aria-pressed="${swatch === color}" style="--swatch:${swatch}"></button>`).join("")}</div>
-          </div>
-          <div class="product-option">
+            <div class="product-swatches">${colorOptions.map((swatch) => `<button class="swatch swatch--large ${swatch === color ? "swatch--selected" : ""}" type="button" data-select-color="${swatch}" aria-label="${colorNames[swatch] || "Цвет"}" aria-pressed="${swatch === color}" style="--swatch:${swatch}"></button>`).join("")}</div>
+          </div>` : ""}
+          ${product.hideSizeOption ? "" : `<div class="product-option">
             <div class="product-option__head"><strong>Размер</strong><a href="#product-specifications">Размеры</a></div>
-            <div class="product-sizes">${(product.type === "tote" ? ["Medium", "Large"] : ["One size"]).map((option) => `<button class="product-size ${option === size ? "is-selected" : ""}" type="button" data-select-size="${option}" aria-pressed="${option === size}">${option === "One size" ? "Универсальный" : option}</button>`).join("")}</div>
-          </div>
-          <div class="product-stock"><span></span>В наличии · доставим за 2–5 дней</div>
+            <div class="product-sizes">${sizeOptions.map((option) => `<button class="product-size ${option.name === size ? "is-selected" : ""}" type="button" data-select-size="${escapeHTML(option.name)}" aria-pressed="${option.name === size}">${option.name === "One size" ? "Универсальный" : escapeHTML(option.name)}</button>`).join("")}</div>
+          </div>`}
+          ${product.showStockInfo === false ? "" : `<div class="product-stock"><span></span>В наличии · доставим за 2–5 дней</div>`}
           <div class="product-actions">
-            <button class="button" type="button" data-add-cart="${product.id}" data-add-color="${color}" data-add-size="${size}">Добавить в корзину</button>
+            <button class="button" type="button" data-add-cart="${product.id}" data-add-color="${escapeHTML(color)}" data-add-size="${escapeHTML(size)}">Добавить в корзину</button>
             <button class="icon-button ${favorite ? "is-active" : ""}" type="button" data-favorite-toggle="${product.id}" aria-label="${favorite ? "Убрать из" : "Добавить в"} избранное" aria-pressed="${favorite}">${icons.heart}</button>
-            <button class="product-buy-now" type="button" data-buy-now="${product.id}" data-add-color="${color}" data-add-size="${size}">Купить сейчас</button>
+            <button class="product-buy-now" type="button" data-buy-now="${product.id}" data-add-color="${escapeHTML(color)}" data-add-size="${escapeHTML(size)}">Купить сейчас</button>
           </div>
           <div class="product-accordion">
             <details open><summary>Доставка</summary><p>Доставляем по России курьером и в пункты выдачи. Срок — 2–5 дней, бесплатно от 20 000 ₽.</p></details>
@@ -610,19 +799,46 @@
         </section>
       </div>
     </div>
-    <section class="product-description-grid wrap" id="product-specifications">
-      <div><h2 class="section-title">Описание</h2><p>${escapeHTML(product.description)} Форма, материал и аккуратная отделка продуманы для ежедневного использования.</p><h3>Уход за изделием</h3><p>Протирать мягкой тканью, хранить в пыльнике, избегать воды и прямого солнца.</p></div>
-      <div><h2 class="section-title">Характеристики</h2><dl><div><dt>Материал</dt><dd>${escapeHTML(product.material)}</dd></div><div><dt>Подкладка</dt><dd>Текстиль</dd></div><div><dt>Фурнитура</dt><dd>Металл, цвет — золото</dd></div><div><dt>Размер</dt><dd>${escapeHTML(product.dimensions)}</dd></div><div><dt>Длина ремня</dt><dd>${escapeHTML(product.strap)}</dd></div><div><dt>Артикул</dt><dd>PB-${product.id.toUpperCase()}</dd></div></dl></div>
+    <section class="product-description-grid wrap ${descriptionMarkup ? "" : "product-description-grid--single"}" id="product-specifications">
+      ${descriptionMarkup}
+      <div><h2 class="section-title">Характеристики</h2><dl>${specifications.filter(([, value]) => value).map(([label, value]) => `<div><dt>${escapeHTML(label)}</dt><dd>${escapeHTML(value)}</dd></div>`).join("")}</dl></div>
     </section>
-    <section class="home-section wrap reveal"><div class="section-head"><h2 class="section-title">Отзывы</h2><a class="text-link" href="#product-specifications">Написать отзыв ${icons.arrow}</a></div><div class="reviews-grid"><article class="quote-card"><span class="quote-stars">★★★★★</span><blockquote>«Сумка выглядит ещё лучше, чем на фото. Кожа мягкая, фурнитура аккуратная»</blockquote><cite>Ольга · покупательница PalBag</cite></article><article class="quote-card"><span class="quote-stars">★★★★★</span><blockquote>«Очень удобный размер и продуманная организация внутри»</blockquote><cite>Мария · покупательница PalBag</cite></article></div></section>
+    ${product.showDemoReviews === false ? "" : `<section class="home-section wrap reveal"><div class="section-head"><h2 class="section-title">Отзывы</h2><a class="text-link" href="#product-specifications">Написать отзыв ${icons.arrow}</a></div><div class="reviews-grid"><article class="quote-card"><span class="quote-stars">★★★★★</span><blockquote>«Сумка выглядит ещё лучше, чем на фото. Кожа мягкая, фурнитура аккуратная»</blockquote><cite>Ольга · покупательница PalBag</cite></article><article class="quote-card"><span class="quote-stars">★★★★★</span><blockquote>«Очень удобный размер и продуманная организация внутри»</blockquote><cite>Мария · покупательница PalBag</cite></article></div></section>`}
     <section class="section wrap reveal"><div class="section-head"><div class="section-head__copy"><span class="eyebrow">В том же настроении</span><h2 class="section-title">Похожие модели</h2></div></div><div class="product-grid">${relatedProducts.map(productCard).join("")}</div></section>
-    <div class="mobile-buybar"><span class="mobile-buybar__price"><strong>${formatPrice(product.price)}</strong><span class="muted">${escapeHTML(product.name)}</span></span><button class="button" type="button" data-buy-now="${product.id}" data-add-color="${color}" data-add-size="${size}">Купить сейчас</button></div>`;
+    <div class="mobile-buybar"><span class="mobile-buybar__price"><strong>${formatPrice(price)}</strong><span class="muted">${escapeHTML(product.name)}${product.variantLabel ? ` · ${escapeHTML(product.variantLabel)}` : ""}</span></span><button class="button" type="button" data-buy-now="${product.id}" data-add-color="${color}" data-add-size="${escapeHTML(size)}">Купить сейчас</button></div>`;
   }
 
   function productNotFoundMarkup() {
     return `<div class="wrap">
       <nav class="breadcrumb" aria-label="Хлебные крошки"><a href="index.html">Главная</a><span aria-hidden="true">/</span><span aria-current="page">Товар не найден</span></nav>
       <section class="empty-page"><div class="empty-page__inner"><h1 class="page-title">Товар не найден</h1><p>Проверьте ссылку или вернитесь в каталог, чтобы выбрать другую модель.</p><a class="button" href="catalog.html">Перейти в каталог ${icons.arrow}</a></div></section>
+    </div>`;
+  }
+
+  function brandCategoryMarkup(brand) {
+    const brandProducts = products.filter((product) => product.brand === brand);
+    const featuredProduct = brandProducts[0];
+    const description = brand === "CHANEL"
+      ? "Модель Chanel Maxi Flap Bag представлена в каталоге PalBag вместе с фотографиями и видео товара."
+      : "Выбранные модели BALENCIAGA в PalBag. Изучите фотографии, характеристики и доступные размеры в карточке товара.";
+    return `<div class="wrap">
+      <nav class="breadcrumb" aria-label="Хлебные крошки"><a href="index.html">Главная</a><span aria-hidden="true">/</span><a href="catalog.html">Каталог</a><span aria-hidden="true">/</span><span aria-current="page">${escapeHTML(brand)}</span></nav>
+      <section class="brand-editorial brand-category-hero reveal">
+        <div class="brand-editorial__media">${featuredProduct?.campaignImage ? `<img src="${escapeHTML(featuredProduct.campaignImage)}" alt="${escapeHTML(featuredProduct.name)}">` : ""}</div>
+        <div class="brand-editorial__copy">
+          <span class="eyebrow">Дизайнерская коллекция</span>
+          <h1 class="page-title">${escapeHTML(brand)}</h1>
+          <p>${escapeHTML(description)}</p>
+          ${featuredProduct ? `<a class="text-link" href="product.html?id=${encodeURIComponent(featuredProduct.id)}">Познакомиться с моделью ${icons.arrow}</a>` : ""}
+        </div>
+      </section>
+      <section class="brand-products">
+        <div class="section-head">
+          <div class="section-head__copy"><span class="eyebrow">${escapeHTML(brand)} · Коллекция</span><h2 class="section-title">Модели бренда</h2></div>
+          <span class="eyebrow">${brandProducts.length} ${pluralRu(brandProducts.length, ["модель", "модели", "моделей"])}</span>
+        </div>
+        <div class="product-grid">${brandProducts.length ? brandProducts.map(productCard).join("") : `<div class="empty-state"><h2>Коллекция скоро обновится</h2><p>Новые модели ${escapeHTML(brand)} появятся в этом разделе.</p><a class="button button--outline" href="catalog.html">Вернуться в каталог ${icons.arrow}</a></div>`}</div>
+      </section>
     </div>`;
   }
 
@@ -639,28 +855,35 @@
     const cart = getCart();
     const items = cart.map((entry) => ({ ...entry, product: productMap.get(entry.id) }));
     const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
-    const subtotal = items.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
+    const subtotal = items.reduce((sum, item) => sum + getProductPrice(item.product, item.size) * item.quantity, 0);
     const shipping = subtotal === 0 || subtotal >= 20000 ? 0 : 500;
     return `<div class="wrap">
       <nav class="breadcrumb" aria-label="Хлебные крошки"><a href="index.html">Главная</a><span aria-hidden="true">/</span><span aria-current="page">Корзина</span></nav>
       <header class="page-heading"><div class="page-heading__copy"><span class="eyebrow">Ваш выбор</span><h1 class="page-title">Корзина</h1><p>${itemCount} ${pluralRu(itemCount, ["товар", "товара", "товаров"])}</p></div><a class="text-link" href="catalog.html">Продолжить покупки ${icons.arrow}</a></header>
       ${items.length ? `<div class="cart-layout">
-        <div class="cart-list">${items.map(({ product, quantity, color, size }) => `<article class="cart-row">
-          <a class="cart-row__image" href="product.html?id=${encodeURIComponent(product.id)}">${bagArt(product.type, color, product.background)}</a>
+        <div class="cart-list">${items.map(({ product, quantity, color, size }) => {
+          const itemDetails = [
+            color && product.colorName ? `Цвет: ${colorNames[color] || product.colorName}` : "",
+            size !== "One size" ? `Размер: ${size}` : "",
+            product.packageContents ? `Комплектация: ${product.packageContents}` : ""
+          ].filter(Boolean);
+          return `<article class="cart-row">
+          <a class="cart-row__image" href="product.html?id=${encodeURIComponent(product.id)}">${productVisual(product, 0, product.name)}</a>
           <div class="cart-row__info">
             <a href="product.html?id=${encodeURIComponent(product.id)}">${escapeHTML(product.name)}</a>
-            <span>Цвет: ${colorNames[color] || product.colorName}${size !== "One size" ? ` · Размер: ${size}` : ""}</span>
+            ${itemDetails.length ? `<span>${itemDetails.map(escapeHTML).join(" · ")}</span>` : ""}
             <button class="cart-row__remove" type="button" data-remove-cart="${product.id}" data-remove-color="${color}" data-remove-size="${size}">Удалить</button>
           </div>
           <div class="cart-row__amount">
-            <span>${formatPrice(product.price * quantity)}</span>
+            <span>${formatPrice(getProductPrice(product, size) * quantity)}</span>
             <div class="quantity" aria-label="Количество">
               <button type="button" data-quantity="${product.id}" data-quantity-color="${color}" data-quantity-size="${size}" data-delta="-1" aria-label="Уменьшить количество">−</button>
               <span>${quantity}</span>
               <button type="button" data-quantity="${product.id}" data-quantity-color="${color}" data-quantity-size="${size}" data-delta="1" aria-label="Увеличить количество">+</button>
             </div>
           </div>
-        </article>`).join("")}</div>
+        </article>`;
+        }).join("")}</div>
         <aside class="order-summary">
           <h2>Ваш заказ</h2>
           <div class="summary-line"><span>Товары</span><span>${formatPrice(subtotal)}</span></div>
@@ -777,6 +1000,10 @@
     } else if (page === "catalog") {
       main.innerHTML = catalogMarkup();
       renderFilterDrawer();
+    } else if (page === "brand") {
+      document.title = `${pageBrand} — PalBag`;
+      main.innerHTML = brandCategoryMarkup(pageBrand);
+      document.getElementById("overlay-root").innerHTML = "";
     } else if (page === "product") {
       const id = new URLSearchParams(location.search).get("id");
       const product = productMap.get(id);
@@ -804,6 +1031,7 @@
       main.innerHTML = contactsMarkup();
       document.getElementById("overlay-root").innerHTML = "";
     }
+    if (page === "product") observeProductVideos();
     updateHeaderCounts();
     observeReveals();
     initHeader();
@@ -893,8 +1121,10 @@
     const product = productMap.get(id);
     if (!product) return;
     const cart = getCart();
-    const selected = color || product.color;
-    const selectedSize = size || (product.type === "tote" ? "Medium" : "One size");
+    const selected = color || product.color || "";
+    const selectedSize = getSizeOptions(product).some((option) => option.name === size)
+      ? size
+      : getDefaultSize(product);
     const existing = cart.find((entry) => entry.id === id && entry.color === selected && entry.size === selectedSize);
     if (existing) existing.quantity += 1;
     else cart.push({ id, quantity: 1, color: selected, size: selectedSize });
@@ -931,9 +1161,11 @@
     const activeFilters = document.querySelector(".filter-drawer.is-open") || document.querySelector(".filters");
     if (!activeFilters) return;
     const categories = [...activeFilters.querySelectorAll("[data-filter-category]:checked")].map((input) => input.dataset.filterCategory);
+    const selectedBrands = [...activeFilters.querySelectorAll("[data-filter-brand]:checked")].map((input) => input.dataset.filterBrand);
     const minInput = activeFilters.querySelector("[data-filter-min]");
     const maxInput = activeFilters.querySelector("[data-filter-max]");
     state.catalog.categories = new Set(categories);
+    state.catalog.brands = new Set(selectedBrands);
     state.catalog.min = minInput ? minInput.value.trim() : "";
     state.catalog.max = maxInput ? maxInput.value.trim() : "";
   }
@@ -946,6 +1178,7 @@
 
   function resetFilters() {
     state.catalog.categories.clear();
+    state.catalog.brands.clear();
     state.catalog.colors.clear();
     state.catalog.min = "";
     state.catalog.max = "";
@@ -1052,6 +1285,14 @@
     const size = target.closest("[data-select-size]");
     if (size && page === "product") {
       state.selectedSize = size.dataset.selectSize;
+      const product = productMap.get(new URLSearchParams(location.search).get("id"));
+      if (product) {
+        const price = formatPrice(getProductPrice(product, state.selectedSize));
+        const desktopPrice = document.querySelector(".product-detail__price strong");
+        const mobilePrice = document.querySelector(".mobile-buybar__price strong");
+        if (desktopPrice) desktopPrice.textContent = price;
+        if (mobilePrice) mobilePrice.textContent = price;
+      }
       document.querySelectorAll("[data-select-size]").forEach((button) => {
         const selected = button === size;
         button.classList.toggle("is-selected", selected);
@@ -1078,7 +1319,7 @@
       });
       document.querySelector("[data-color-name]").textContent = colorNames[state.selectedColor] || product.colorName;
       document.querySelectorAll(".product-info [data-add-color], .mobile-buybar [data-add-color]").forEach((button) => button.dataset.addColor = state.selectedColor);
-      document.querySelector(".mobile-buybar__price .muted").textContent = product.name;
+      document.querySelector(".mobile-buybar__price .muted").textContent = product.variantLabel ? `${product.name} · ${product.variantLabel}` : product.name;
       return;
     }
 
@@ -1128,7 +1369,7 @@
 
   document.addEventListener("change", (event) => {
     const target = event.target;
-    if (target.matches("[data-filter-category], [data-filter-min], [data-filter-max]")) {
+    if (target.matches("[data-filter-category], [data-filter-brand], [data-filter-min], [data-filter-max]")) {
       updateCatalogFilters();
       render();
     } else if (target.matches("[data-sort]")) {

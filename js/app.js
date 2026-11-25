@@ -26,10 +26,12 @@
       min: "",
       max: "",
       search: new URLSearchParams(location.search).get("search") || "",
-      sort: "popular"
+      sort: new URLSearchParams(location.search).get("sort") || "popular",
+      columns: 3
     },
     drawerOpen: false,
     selectedColor: null,
+    selectedSize: null,
     toastTimer: null,
     heroTimer: null
   };
@@ -49,7 +51,8 @@
     gift: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10h18v11H3zM2 6h20v4H2zM12 6v15"/><path d="M12 6H8.5a2.5 2.5 0 1 1 2.5-2.5V6Zm0 0h3.5a2.5 2.5 0 1 0-2.5-2.5V6Z"/></svg>',
     filter: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M7 12h10m-7 5h4"/><circle cx="8" cy="7" r="1.5" fill="#fff"/><circle cx="15" cy="12" r="1.5" fill="#fff"/></svg>',
     close: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>',
-    pin: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg>'
+    pin: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg>',
+    play: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13L19 12 8 5.5Z"/></svg>'
   };
 
   function escapeHTML(value) {
@@ -99,7 +102,10 @@
         quantity: entry.quantity,
         color: typeof entry.color === "string" && entry.color.startsWith("#")
           ? entry.color
-          : productMap.get(entry.id).color
+          : productMap.get(entry.id).color,
+        size: entry.size === "Medium" || entry.size === "Large" || entry.size === "One size"
+          ? entry.size
+          : productMap.get(entry.id).type === "tote" ? "Medium" : "One size"
       }));
   }
 
@@ -149,48 +155,100 @@
     const favorite = getFavorites().includes(product.id);
     return `<article class="product-card">
       <div class="product-card__visual">
-        <a href="product.html?id=${encodeURIComponent(product.id)}" aria-label="Открыть товар «${escapeHTML(product.name)}»">
+        <a class="product-card__image" href="product.html?id=${encodeURIComponent(product.id)}" aria-label="Открыть товар «${escapeHTML(product.name)}»">
           ${bagArt(product.type, product.color, product.background)}
+          <span class="product-card__alternate">${bagArt(product.type, product.color, "#e4ddd2")}</span>
         </a>
         ${product.badge ? `<span class="product-card__badge">${escapeHTML(product.badge)}</span>` : ""}
         <button class="icon-button product-card__favorite ${favorite ? "is-active" : ""}" type="button" data-favorite-toggle="${product.id}" aria-label="${favorite ? "Убрать из" : "Добавить в"} избранное" aria-pressed="${favorite}">
           ${icons.heart}
         </button>
+        <div class="product-card__actions">
+          <button type="button" data-add-cart="${product.id}" data-add-color="${product.color}" data-add-size="${product.type === "tote" ? "Medium" : "One size"}">В корзину</button>
+          <button class="product-card__quick-view" type="button" data-quick-view="${product.id}" aria-label="Быстрый просмотр «${escapeHTML(product.name)}»">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
       </div>
       <div class="product-card__info">
-        <a class="product-card__name" href="product.html?id=${encodeURIComponent(product.id)}">${escapeHTML(product.name)}</a>
+        <div class="product-card__title-row">
+          <a class="product-card__name" href="product.html?id=${encodeURIComponent(product.id)}">${escapeHTML(product.name)}</a>
+          <div class="product-card__meta" aria-label="Доступные цвета">${product.swatches.map((color) => `<span class="swatch" style="--swatch:${color}" title="${colorNames[color] || "Цвет"}"></span>`).join("")}</div>
+        </div>
         <span class="product-card__price">${formatPrice(product.price)}${product.oldPrice ? ` <span class="sale-price">${formatPrice(product.oldPrice)}</span>` : ""}</span>
-        <div class="product-card__meta" aria-label="Доступные цвета">${product.swatches.map((color) => `<span class="swatch" style="--swatch:${color}" title="${colorNames[color] || "Цвет"}"></span>`).join("")}</div>
-        <span class="product-card__note">${escapeHTML(product.colorName)}${product.swatches.length > 1 ? ` · ещё ${product.swatches.length - 1} ${product.swatches.length === 2 ? "цвет" : "цвета"}` : ""}</span>
       </div>
     </article>`;
   }
 
+  function quickViewMarkup(product) {
+    return `<div class="quick-view-backdrop" data-quick-view-backdrop>
+      <section class="quick-view" role="dialog" aria-modal="true" aria-labelledby="quick-view-title">
+        <button class="icon-button quick-view__close" type="button" data-quick-view-close aria-label="Закрыть">${icons.close}</button>
+        <div class="quick-view__image">${bagArt(product.type, product.color, product.background)}</div>
+        <div class="quick-view__content">
+          <span class="eyebrow">${escapeHTML(categoryNames[product.category] || product.category)} · натуральная кожа</span>
+          <h2 id="quick-view-title">${escapeHTML(product.name)}</h2>
+          <p>${escapeHTML(product.description)}</p>
+          <strong>${formatPrice(product.price)}${product.oldPrice ? ` <del>${formatPrice(product.oldPrice)}</del>` : ""}</strong>
+          <button class="button" type="button" data-quick-view-add="${product.id}" data-add-color="${product.color}" data-add-size="${product.type === "tote" ? "Medium" : "One size"}">Добавить в корзину</button>
+          <a class="text-link" href="product.html?id=${encodeURIComponent(product.id)}">Подробнее о модели ${icons.arrow}</a>
+        </div>
+      </section>
+    </div>`;
+  }
+
+  function openQuickView(id) {
+    const product = productMap.get(id);
+    if (!product) return;
+    let layer = document.getElementById("quick-view-layer");
+    if (!layer) {
+      layer = document.createElement("div");
+      layer.id = "quick-view-layer";
+      document.body.append(layer);
+    }
+    layer.innerHTML = quickViewMarkup(product);
+    layer.querySelector(".quick-view-backdrop").classList.add("is-open");
+    document.body.classList.add("is-locked");
+    layer.querySelector("[data-quick-view-close]").focus();
+  }
+
+  function closeQuickView() {
+    const layer = document.getElementById("quick-view-layer");
+    if (layer) layer.innerHTML = "";
+    if (!document.querySelector("#site-menu.is-open, [data-modal-backdrop].is-open")) {
+      document.body.classList.remove("is-locked");
+    }
+  }
+
   function headerMarkup() {
-    return `<div class="announcement">Бесплатная доставка при заказе от 20 000 ₽</div>
-      <div class="site-header" id="sticky-header">
+    const home = page === "home";
+    return `${home ? `<div class="announcement">Бесплатная доставка от 20 000 ₽ · Возврат в течение 14 дней</div>` : ""}
+      <div class="site-header ${home ? "site-header--overlay" : ""}" id="sticky-header">
         <div class="header-main">
-          <div class="header-left">
+          <nav class="header-left" aria-label="Основная навигация">
             <button class="menu-trigger" type="button" data-menu-toggle aria-expanded="false" aria-controls="site-menu" aria-label="Открыть меню">
               <span class="menu-trigger__lines" aria-hidden="true"><span></span><span></span></span>
               <span class="menu-trigger__label">Меню</span>
             </button>
-          </div>
+            <a href="catalog.html">Каталог</a>
+            <a href="catalog.html?sort=new">Новинки</a>
+            <a href="catalog.html?sort=popular">Бестселлеры</a>
+          </nav>
           <a class="brand" href="index.html" aria-label="PalBag — на главную"><span>PAL</span><strong>BAG</strong></a>
-          <div class="header-actions">
-            <form class="header-search header-desktop-search" role="search" action="catalog.html">
-              <label class="search-field">
-                <input type="search" name="search" placeholder="Поиск по каталогу" aria-label="Поиск по каталогу">
-                <button type="submit" aria-label="Искать">${icons.search}</button>
-              </label>
-            </form>
-            <button class="icon-button header-mobile-search" type="button" data-mobile-search aria-label="Открыть поиск">${icons.search}</button>
+          <div class="header-right">
+            <nav class="header-secondary" aria-label="Информация">
+              <a href="about.html">О бренде</a>
+              <a href="contacts.html">Контакты</a>
+            </nav>
+            <div class="header-actions">
+            <button class="icon-button header-mobile-search" type="button" data-mobile-search aria-label="Поиск">${icons.search}</button>
             <a class="icon-button desktop-only" href="favorites.html" aria-label="Избранное">
               ${icons.heart}<span class="count-badge" data-favorites-count hidden></span>
             </a>
             <a class="icon-button" href="cart.html" aria-label="Корзина">
               ${icons.bag}<span class="count-badge" data-cart-count hidden></span>
             </a>
+            </div>
           </div>
         </div>
         <div class="mobile-search-panel" id="mobile-search-panel" hidden>
@@ -228,31 +286,33 @@
       <div class="wrap footer-top">
         <div class="footer-brand">
           <a class="brand brand--small" href="index.html" aria-label="PalBag — на главную"><span>PAL</span><strong>BAG</strong></a>
-          <p>Сумки без лишнего. Натуральная кожа, чистые линии и продуманные детали.</p>
+          <p>Женские сумки из натуральных материалов. Чистые линии и внимание к деталям.</p>
         </div>
+        <nav class="footer-column" aria-label="Каталог">
+          <h2>Каталог</h2>
+          <a href="catalog.html">Все сумки</a>
+          <a href="catalog.html?sort=new">Новинки</a>
+          <a href="catalog.html?sort=popular">Бестселлеры</a>
+          <a href="catalog.html?category=кросс-боди">Кросс-боди</a>
+          <a href="catalog.html?category=тоуты">Тоуты</a>
+        </nav>
         <nav class="footer-column" aria-label="Покупателям">
           <h2>Покупателям</h2>
-          <a href="catalog.html">Каталог</a>
-          <a href="favorites.html">Избранное</a>
-          <a href="cart.html">Корзина</a>
           <a href="delivery.html">Доставка и оплата</a>
-        </nav>
-        <nav class="footer-column" aria-label="О бренде">
-          <h2>PalBag</h2>
+          <a href="delivery.html#returns">Возврат</a>
           <a href="about.html">О бренде</a>
           <a href="contacts.html">Контакты</a>
-          <a href="delivery.html#returns">Возврат и обмен</a>
         </nav>
-        <div class="footer-column">
-          <h2>Связаться</h2>
-          <a href="mailto:hello@palbag.ru">hello@palbag.ru</a>
-          <a href="tel:+78005553535">8 800 555-35-35</a>
-          <span>Ежедневно, 10:00–20:00 МСК</span>
-        </div>
+        <nav class="footer-column" aria-label="Социальные сети">
+          <h2>Социальные сети</h2>
+          <a href="https://t.me/">Telegram</a>
+          <a href="https://vk.com/">VK</a>
+          <a href="https://pinterest.com/">Pinterest</a>
+        </nav>
       </div>
       <div class="wrap footer-bottom">
-        <span>© PalBag, 2026. Демонстрационный прототип.</span>
-        <span>Сделано с вниманием к деталям</span>
+        <span>© 2026 PalBag, palbag.ru · Демонстрационный прототип</span>
+        <div><a href="#privacy">Политика конфиденциальности</a><a href="#terms">Пользовательское соглашение</a></div>
       </div>
     </div>`;
   }
@@ -268,7 +328,7 @@
         background: "#d9cebf",
         backdrop: "#efe9e0",
         link: "catalog.html?category=тоуты",
-        action: "Открыть коллекцию"
+        action: "Смотреть коллекцию"
       },
       {
         eyebrow: "Мини-сумки",
@@ -278,8 +338,8 @@
         color: "#1c1b1a",
         background: "#cfd2cb",
         backdrop: "#ebede8",
-        link: "product.html?id=nota",
-        action: "Смотреть мини Nota"
+        link: "catalog.html?category=мини-сумки",
+        action: "Смотреть коллекцию"
       },
       {
         eyebrow: "Кросс-боди",
@@ -290,7 +350,7 @@
         background: "#dfcfc9",
         backdrop: "#f2e9e5",
         link: "catalog.html?category=кросс-боди",
-        action: "Выбрать кросс-боди"
+        action: "Смотреть коллекцию"
       }
     ];
     const slidesMarkup = slides.map((slide, index) => `<article class="hero-slide ${index === 0 ? "is-active" : ""}" data-hero-slide="${index}" aria-hidden="${index !== 0}" style="background:${slide.backdrop}">
@@ -298,86 +358,111 @@
         <span class="eyebrow">${slide.eyebrow}</span>
         <h1 class="display">${slide.title}</h1>
         <p class="lead">${slide.description}</p>
-        <a class="button" href="${slide.link}">${slide.action}${icons.arrow}</a>
+        <a class="button" href="${slide.link}">${slide.action}</a>
       </div>
       <div class="hero-art">${bagArt(slide.type, slide.color, slide.background)}</div>
     </article>`).join("");
     const progress = slides.map((slide, index) => `<button type="button" data-hero-go="${index}" aria-label="Баннер ${index + 1}" aria-current="${index === 0}"><span></span></button>`).join("");
-    return `<section class="hero" aria-label="Новая коллекция">
+    return `<section class="hero" aria-label="Рекламные баннеры">
       <div class="hero-track" id="hero-track">${slidesMarkup}</div>
       <div class="hero-controls">
-        <span class="hero-counter" id="hero-counter">01 / 03</span>
+        <div class="hero-control-group">
+          <span class="hero-counter" id="hero-counter">01 / 03</span>
+          <div class="hero-progress" aria-label="Выбрать баннер">${progress}</div>
+        </div>
         <div class="hero-arrows">
           <button class="hero-arrow" type="button" data-hero-prev aria-label="Предыдущий баннер">${icons.left}</button>
           <button class="hero-arrow" type="button" data-hero-next aria-label="Следующий баннер">${icons.right}</button>
         </div>
-        <div class="hero-progress" aria-label="Выбрать баннер">${progress}</div>
       </div>
     </section>`;
   }
 
   function homeMarkup() {
     const categoryTypes = [
-      { title: "Тоуты", category: "тоуты", type: "tote", background: "#e9e3da" },
-      { title: "Кросс-боди", category: "кросс-боди", type: "cross", background: "#e5ded4" },
-      { title: "На плечо", category: "на плечо", type: "shoulder", background: "#e7e6df" },
-      { title: "Мини-сумки", category: "мини-сумки", type: "mini", background: "#e9dfdb" }
+      { title: "Женские сумки", category: "", type: "tote", color: "#1c1b1a", background: "#e9e3da" },
+      { title: "Кросс-боди", category: "кросс-боди", type: "cross", color: "#8a5a3c", background: "#dcd3c6" },
+      { title: "Сумки на плечо", category: "на плечо", type: "shoulder", color: "#6d6a58", background: "#e4e3dc" },
+      { title: "Тоуты", category: "тоуты", type: "tote", color: "#d2c7b6", background: "#ece7e0" },
+      { title: "Мини-сумки", category: "мини-сумки", type: "mini", color: "#5a2a2e", background: "#e2d6d0" },
+      { title: "Новинки", category: "", type: "cross", color: "#1c1b1a", background: "#d8d9d3" }
     ];
     return `${heroMarkup()}
-      <div class="wrap promise-strip" aria-label="Преимущества PalBag">
-        <div class="promise">${icons.truck}<div><strong>Доставка по России</strong><span>Бережно и в удобное время</span></div></div>
-        <div class="promise">${icons.return}<div><strong>Возврат 14 дней</strong><span>Примерьте дома спокойно</span></div></div>
-        <div class="promise">${icons.lock}<div><strong>Безопасная оплата</strong><span>Все популярные способы</span></div></div>
-        <div class="promise">${icons.gift}<div><strong>Фирменная упаковка</strong><span>Готово для подарка</span></div></div>
-      </div>
-      <section class="section wrap reveal">
+      <section class="home-section wrap reveal">
         <div class="section-head">
-          <div class="section-head__copy"><span class="eyebrow">Найдите свою форму</span><h2 class="section-title">Популярные категории</h2></div>
-          <a class="text-link" href="catalog.html">Весь каталог ${icons.arrow}</a>
+          <div class="section-head__copy"><span class="eyebrow">Каталог</span><h2 class="section-title">Популярные категории</h2></div>
+          <a class="text-link" href="catalog.html">Все сумки ${icons.arrow}</a>
         </div>
-        <div class="category-grid">${categoryTypes.map((category) => `<a class="category-tile" href="catalog.html?category=${encodeURIComponent(category.category)}" style="--tile-bg:${category.background}">
-          <svg class="bag-art" viewBox="0 0 420 520" aria-hidden="true"><use href="assets/bags.svg#${category.type}"></use></svg>
-          <span class="category-tile__label"><span>${category.title}</span><span>↗</span></span>
+        <div class="category-grid">${categoryTypes.map((category, index) => `<a class="category-card ${index === 1 || index === 4 ? "category-card--offset" : ""}" href="${category.title === "Новинки" ? "catalog.html?sort=new" : category.category ? `catalog.html?category=${encodeURIComponent(category.category)}` : "catalog.html"}">
+          ${bagArt(category.type, category.color, category.background)}
+          <span class="category-card__label"><span>${category.title}</span><span>${String(index + 1).padStart(2, "0")}</span></span>
         </a>`).join("")}</div>
       </section>
-      <section class="section wrap reveal">
+      <section class="home-section wrap reveal">
         <div class="section-head">
           <div class="section-head__copy"><span class="eyebrow">Выбор покупателей</span><h2 class="section-title">Бестселлеры PalBag</h2></div>
-          <a class="text-link" href="catalog.html">Смотреть всё ${icons.arrow}</a>
+          <a class="text-link" href="catalog.html">Смотреть все ${icons.arrow}</a>
         </div>
         <div class="product-grid">${products.slice(0, 4).map(productCard).join("")}</div>
       </section>
-      <section class="story-band reveal">
-        <div class="story-band__art">${bagArt("cross", "#8a5a3c", "#dcd2c4")}</div>
-        <div class="story-band__copy">
-          <span class="eyebrow">О PalBag</span>
+      <section class="editorial-band reveal">
+        <div class="editorial-band__art">${bagArt("cross", "#8a5a3c", "#dcd2c4")}</div>
+        <div class="editorial-band__copy">
+          <span class="eyebrow">Editorial · Материал</span>
           <h2 class="section-title">Кожа, которая красиво стареет</h2>
-          <p class="lead">PalBag — это сумки без лишнего. Мы выбираем материалы, которые служат годами, и формы, которые не выходят из моды.</p>
-          <a class="text-link" href="about.html">История бренда ${icons.arrow}</a>
+          <p>Мы выбираем плотные натуральные материалы, сдержанную фурнитуру и швы, которые видны только вблизи. Сумка, которая становится лучше с годами.</p>
+          <a class="text-link" href="about.html">О материалах ${icons.arrow}</a>
         </div>
       </section>
-      <section class="section wrap reveal">
+      <section class="home-section wrap reveal">
         <div class="section-head">
-          <div class="section-head__copy"><span class="eyebrow">Только что в коллекции</span><h2 class="section-title">Новинки</h2></div>
-          <a class="text-link" href="catalog.html">Все новинки ${icons.arrow}</a>
+          <div class="section-head__copy"><span class="eyebrow">Зима 2026</span><h2 class="section-title">Новинки</h2></div>
+          <a class="text-link" href="catalog.html?sort=new">Смотреть все ${icons.arrow}</a>
         </div>
         <div class="product-grid">${products.slice(4).map(productCard).join("")}</div>
       </section>
-      <section class="section wrap reveal">
-        <div class="section-head"><div class="section-head__copy"><span class="eyebrow">Тёплые слова</span><h2 class="section-title">Говорят покупатели</h2></div></div>
+      <section class="home-statement reveal">
+        <span class="eyebrow">О PalBag</span>
+        <p>PalBag — это сумки без лишнего. Мы выбираем материалы, которые служат годами, и формы, которые не выходят из моды.</p>
+        <a class="text-link" href="about.html">О бренде ${icons.arrow}</a>
+      </section>
+      <section class="home-promises wrap reveal" aria-label="Преимущества PalBag">
+        <div class="home-promise">${icons.truck}<h3>Доставка по России</h3><p>Курьером и в пункты выдачи.</p></div>
+        <div class="home-promise">${icons.return}<h3>Возврат 14 дней</h3><p>Если сумка не подошла — вернём деньги.</p></div>
+        <div class="home-promise">${icons.lock}<h3>Безопасная оплата</h3><p>Картой, через СБП или при получении.</p></div>
+        <div class="home-promise">${icons.gift}<h3>Фирменная упаковка</h3><p>Коробка и пыльник в комплекте.</p></div>
+      </section>
+      <section class="home-section wrap reveal">
+        <div class="section-head"><div class="section-head__copy"><span class="eyebrow">Отзывы</span><h2 class="section-title">Говорят покупатели</h2></div></div>
         <div class="reviews-grid">
-          <article class="quote-card"><span class="quote-stars">★★★★★</span><blockquote>«Всё очень продумано — от формы до маленькой фурнитуры»</blockquote><cite>Анна · Тоут Lune</cite></article>
-          <article class="quote-card"><span class="quote-stars">★★★★★</span><blockquote>«Та самая сумка, которую беру с собой каждый день»</blockquote><cite>Мария · Кросс-боди Aria</cite></article>
-          <article class="quote-card"><span class="quote-stars">★★★★★</span><blockquote>«Натуральная кожа и очень приятная упаковка»</blockquote><cite>Елена · Багет Sable</cite></article>
+          <article class="quote-card"><span class="quote-stars" aria-label="Оценка 5 из 5">★★★★★</span><blockquote>«Качество чувствуется в каждой детали. Сумка выглядит сдержанно и дорого»</blockquote><cite>Анна · Тоут Lune</cite></article>
+          <article class="quote-card"><span class="quote-stars" aria-label="Оценка 5 из 5">★★★★★</span><blockquote>«Очень приятная упаковка и быстрая доставка. Ношу каждый день»</blockquote><cite>Мария · Кросс-боди Aria</cite></article>
+          <article class="quote-card"><span class="quote-stars" aria-label="Оценка 5 из 5">★★★★★</span><blockquote>«Наконец нашла идеальный размер — всё нужное помещается»</blockquote><cite>Елена · Мини Nota</cite></article>
         </div>
       </section>
-      <section class="section--compact wrap reveal">
+      <section class="newsletter-section reveal">
         <div class="newsletter">
-          <div><span class="eyebrow">Письма PalBag</span><h2>Новое — первыми</h2></div>
+          <span class="eyebrow">Подписка</span>
+          <h2>Новое — первыми</h2>
+          <p>Новые коллекции и специальные предложения. Без лишних писем.</p>
           <form class="newsletter-form" data-newsletter>
-            <input type="email" name="email" placeholder="Ваш e-mail" aria-label="Ваш e-mail" required>
-            <button type="submit">Подписаться ${icons.arrow}</button>
+            <label class="sr-only" for="newsletter-email">Ваш e-mail</label>
+            <input id="newsletter-email" type="email" name="email" placeholder="Ваш e-mail" required>
+            <button type="submit">Подписаться</button>
           </form>
+          <small>Нажимая «Подписаться», вы соглашаетесь с политикой конфиденциальности.</small>
+        </div>
+      </section>
+      <section class="home-section home-social wrap reveal">
+        <div class="section-head">
+          <div class="section-head__copy"><span class="eyebrow">Социальные сети</span><h2 class="section-title">PalBag в Telegram и VK</h2></div>
+          <div class="home-social__links"><a class="text-link" href="https://t.me/">Telegram</a><a class="text-link" href="https://vk.com/">VK</a></div>
+        </div>
+        <div class="social-grid" aria-label="Коллекция PalBag">
+          ${[
+            ["tote", "#1c1b1a", "#e9e3da"], ["mini", "#8a5a3c", "#ddd4c8"], ["cross", "#5a2a2e", "#e4d9d3"],
+            ["shoulder", "#6d6a58", "#e2e2da"], ["tote", "#d2c7b6", "#ede8e1"], ["cross", "#1c1b1a", "#d8d9d3"]
+          ].map(([type, color, background]) => bagArt(type, color, background)).join("")}
         </div>
       </section>`;
   }
@@ -425,6 +510,7 @@
     if (state.catalog.sort === "price-asc") sorted.sort((a, b) => a.price - b.price);
     if (state.catalog.sort === "price-desc") sorted.sort((a, b) => b.price - a.price);
     if (state.catalog.sort === "name") sorted.sort((a, b) => a.name.localeCompare(b.name, "ru"));
+    if (state.catalog.sort === "new") sorted.sort((a, b) => Number(b.badge === "Новинка") - Number(a.badge === "Новинка"));
     const intro = state.catalog.search
       ? `<span class="eyebrow">Результаты поиска</span><h1 class="page-title">«${escapeHTML(state.catalog.search)}»</h1><p class="lead">Найдено: ${sorted.length}</p>`
       : `<span class="eyebrow">Коллекция PalBag</span><h1 class="page-title">Все сумки</h1><p class="lead">Натуральная кожа, чистые линии и формы для каждого дня.</p>`;
@@ -441,13 +527,22 @@
             <label class="catalog-sort">Сортировка
               <select data-sort>
                 <option value="popular" ${state.catalog.sort === "popular" ? "selected" : ""}>По популярности</option>
+                <option value="new" ${state.catalog.sort === "new" ? "selected" : ""}>Сначала новинки</option>
                 <option value="price-asc" ${state.catalog.sort === "price-asc" ? "selected" : ""}>Сначала дешевле</option>
                 <option value="price-desc" ${state.catalog.sort === "price-desc" ? "selected" : ""}>Сначала дороже</option>
                 <option value="name" ${state.catalog.sort === "name" ? "selected" : ""}>По названию</option>
               </select>
             </label>
+            <div class="catalog-grid-options" role="group" aria-label="Количество колонок">
+              <button type="button" data-grid-columns="3" aria-label="3 колонки" aria-pressed="${state.catalog.columns === 3}">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="5" height="16"/><rect x="9.5" y="4" width="5" height="16"/><rect x="16" y="4" width="5" height="16"/></svg>
+              </button>
+              <button type="button" data-grid-columns="4" aria-label="4 колонки" aria-pressed="${state.catalog.columns === 4}">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="3.5" height="16"/><rect x="8" y="4" width="3.5" height="16"/><rect x="13" y="4" width="3.5" height="16"/><rect x="18" y="4" width="3.5" height="16"/></svg>
+              </button>
+            </div>
           </div>
-          <div class="catalog-products">${sorted.length ? sorted.map(productCard).join("") : `<div class="empty-state"><h2>Ничего не найдено</h2><p>Попробуйте изменить запрос или сбросить фильтры.</p><button class="button button--outline button--small" type="button" data-filter-reset>Сбросить фильтры</button></div>`}</div>
+          <div class="catalog-products ${state.catalog.columns === 4 ? "is-four-columns" : ""}">${sorted.length ? sorted.map(productCard).join("") : `<div class="empty-state"><h2>Ничего не найдено</h2><p>Попробуйте изменить запрос или сбросить фильтры.</p><button class="button button--outline button--small" type="button" data-filter-reset>Сбросить фильтры</button></div>`}</div>
           <div class="promo-card"><div><span class="eyebrow">Внимание к каждой детали</span><h2>Выберите сумку для своего ритма</h2></div><a class="text-link" href="about.html">О PalBag ${icons.arrow}</a></div>
         </section>
       </div>
@@ -466,6 +561,7 @@
 
   function productMarkup(product) {
     const color = state.selectedColor || product.color;
+    const size = state.selectedSize || (product.type === "tote" ? "Medium" : "One size");
     const relatedProducts = products
       .filter((item) => item.id !== product.id)
       .sort((a, b) => Number(b.category === product.category) - Number(a.category === product.category))
@@ -475,12 +571,19 @@
       <nav class="breadcrumb" aria-label="Хлебные крошки"><a href="index.html">Главная</a><span aria-hidden="true">/</span><a href="catalog.html">Каталог</a><span aria-hidden="true">/</span><span aria-current="page">${escapeHTML(product.name)}</span></nav>
       <div class="product-detail">
         <div class="product-gallery" aria-label="Изображения товара">
-          <div class="product-gallery__main">${bagArt(product.type, color, product.background)}</div>
+          <div class="product-gallery__main">
+            ${bagArt(product.type, color, product.background)}
+            ${product.badge ? `<span class="product-gallery__badge">${escapeHTML(product.badge)}</span>` : ""}
+            <button class="product-gallery__zoom" type="button" data-gallery-zoom aria-label="Увеличить изображение">${icons.search}</button>
+            <span class="product-gallery__count">1 / 5</span>
+          </div>
           <div class="product-gallery__tile">${bagArt(product.type, color, "#e4ddd2")}</div>
           <div class="product-gallery__tile">${bagArt(product.type, color, "#ded6ca")}</div>
+          <div class="product-gallery__tile product-gallery__video">${bagArt(product.type, color, "#e8e2d8")}<button type="button" data-product-video aria-label="Запустить видеообзор">${icons.play}</button></div>
+          <div class="product-gallery__tile">${bagArt(product.type, color, "#e1dad0")}</div>
         </div>
         <section class="product-info">
-          <span class="eyebrow">${escapeHTML(product.category)} · натуральная кожа</span>
+          <span class="eyebrow">${escapeHTML(categoryNames[product.category] || product.category)}</span>
           <h1>${escapeHTML(product.name)}</h1>
           <div class="product-rating"><span class="product-rating__stars">★★★★★</span><span>4,9 · 18 отзывов</span></div>
           <div class="product-detail__price"><strong>${formatPrice(product.price)}</strong>${product.oldPrice ? `<del>${formatPrice(product.oldPrice)}</del>` : ""}</div>
@@ -489,27 +592,31 @@
             <div class="product-option__head"><strong>Цвет</strong><span data-color-name>${colorNames[color] || product.colorName}</span></div>
             <div class="product-swatches">${product.swatches.map((swatch) => `<button class="swatch swatch--large ${swatch === color ? "swatch--selected" : ""}" type="button" data-select-color="${swatch}" aria-label="${colorNames[swatch] || "Цвет"}" aria-pressed="${swatch === color}" style="--swatch:${swatch}"></button>`).join("")}</div>
           </div>
+          <div class="product-option">
+            <div class="product-option__head"><strong>Размер</strong><a href="#product-specifications">Размеры</a></div>
+            <div class="product-sizes">${(product.type === "tote" ? ["Medium", "Large"] : ["One size"]).map((option) => `<button class="product-size ${option === size ? "is-selected" : ""}" type="button" data-select-size="${option}" aria-pressed="${option === size}">${option === "One size" ? "Универсальный" : option}</button>`).join("")}</div>
+          </div>
+          <div class="product-stock"><span></span>В наличии · доставим за 2–5 дней</div>
           <div class="product-actions">
-            <button class="button" type="button" data-add-cart="${product.id}" data-add-color="${color}">Добавить в корзину</button>
-            <button class="button button--outline desktop-buy" type="button" data-buy-now="${product.id}" data-add-color="${color}" aria-label="Купить сейчас">${icons.arrow}</button>
+            <button class="button" type="button" data-add-cart="${product.id}" data-add-color="${color}" data-add-size="${size}">Добавить в корзину</button>
             <button class="icon-button ${favorite ? "is-active" : ""}" type="button" data-favorite-toggle="${product.id}" aria-label="${favorite ? "Убрать из" : "Добавить в"} избранное" aria-pressed="${favorite}">${icons.heart}</button>
+            <button class="product-buy-now" type="button" data-buy-now="${product.id}" data-add-color="${color}" data-add-size="${size}">Купить сейчас</button>
           </div>
-          <div class="product-benefits">
-            <div class="product-benefits__row">${icons.truck}<span>Доставка по России от 2 дней</span></div>
-            <div class="product-benefits__row">${icons.return}<span>14 дней на возврат и обмен</span></div>
-            <div class="product-benefits__row">${icons.gift}<span>Фирменная упаковка включена</span></div>
-          </div>
-          <div class="product-accordion" style="margin-top:24px">
-            <details open><summary>Описание</summary><p>${escapeHTML(product.description)} Каждая деталь создана для того, чтобы сумка становилась частью вашей повседневной истории.</p></details>
-            <details><summary>Характеристики</summary><ul><li>Материал: ${escapeHTML(product.material)}</li><li>Размер: ${escapeHTML(product.dimensions)}</li><li>Ремень: ${escapeHTML(product.strap)}</li><li>Подкладка: хлопок</li></ul></details>
-            <details><summary>Доставка и возврат</summary><p>Доставляем по России курьером и в пункты выдачи. Если модель не подошла, её можно вернуть в течение 14 дней.</p></details>
-            <details><summary>Отзывы · 18</summary><p>«Сумка выглядит ещё лучше, чем на фото. Кожа мягкая, фурнитура аккуратная» — Ольга, покупательница PalBag.</p></details>
+          <div class="product-accordion">
+            <details open><summary>Доставка</summary><p>Доставляем по России курьером и в пункты выдачи. Срок — 2–5 дней, бесплатно от 20 000 ₽.</p></details>
+            <details><summary>Возврат</summary><p>Возврат в течение 14 дней при сохранении товарного вида.</p></details>
+            <details><summary>Оплата</summary><p>Картой, через СБП или при получении. Оплата в этом прототипе демонстрационная.</p></details>
           </div>
         </section>
       </div>
     </div>
+    <section class="product-description-grid wrap" id="product-specifications">
+      <div><h2 class="section-title">Описание</h2><p>${escapeHTML(product.description)} Форма, материал и аккуратная отделка продуманы для ежедневного использования.</p><h3>Уход за изделием</h3><p>Протирать мягкой тканью, хранить в пыльнике, избегать воды и прямого солнца.</p></div>
+      <div><h2 class="section-title">Характеристики</h2><dl><div><dt>Материал</dt><dd>${escapeHTML(product.material)}</dd></div><div><dt>Подкладка</dt><dd>Текстиль</dd></div><div><dt>Фурнитура</dt><dd>Металл, цвет — золото</dd></div><div><dt>Размер</dt><dd>${escapeHTML(product.dimensions)}</dd></div><div><dt>Длина ремня</dt><dd>${escapeHTML(product.strap)}</dd></div><div><dt>Артикул</dt><dd>PB-${product.id.toUpperCase()}</dd></div></dl></div>
+    </section>
+    <section class="home-section wrap reveal"><div class="section-head"><h2 class="section-title">Отзывы</h2><a class="text-link" href="#product-specifications">Написать отзыв ${icons.arrow}</a></div><div class="reviews-grid"><article class="quote-card"><span class="quote-stars">★★★★★</span><blockquote>«Сумка выглядит ещё лучше, чем на фото. Кожа мягкая, фурнитура аккуратная»</blockquote><cite>Ольга · покупательница PalBag</cite></article><article class="quote-card"><span class="quote-stars">★★★★★</span><blockquote>«Очень удобный размер и продуманная организация внутри»</blockquote><cite>Мария · покупательница PalBag</cite></article></div></section>
     <section class="section wrap reveal"><div class="section-head"><div class="section-head__copy"><span class="eyebrow">В том же настроении</span><h2 class="section-title">Похожие модели</h2></div></div><div class="product-grid">${relatedProducts.map(productCard).join("")}</div></section>
-    <div class="mobile-buybar"><span class="mobile-buybar__price"><strong>${formatPrice(product.price)}</strong><span class="muted">${escapeHTML(product.name)}</span></span><button class="button" type="button" data-buy-now="${product.id}" data-add-color="${color}">Купить сейчас</button></div>`;
+    <div class="mobile-buybar"><span class="mobile-buybar__price"><strong>${formatPrice(product.price)}</strong><span class="muted">${escapeHTML(product.name)}</span></span><button class="button" type="button" data-buy-now="${product.id}" data-add-color="${color}" data-add-size="${size}">Купить сейчас</button></div>`;
   }
 
   function productNotFoundMarkup() {
@@ -538,19 +645,19 @@
       <nav class="breadcrumb" aria-label="Хлебные крошки"><a href="index.html">Главная</a><span aria-hidden="true">/</span><span aria-current="page">Корзина</span></nav>
       <header class="page-heading"><div class="page-heading__copy"><span class="eyebrow">Ваш выбор</span><h1 class="page-title">Корзина</h1><p>${itemCount} ${pluralRu(itemCount, ["товар", "товара", "товаров"])}</p></div><a class="text-link" href="catalog.html">Продолжить покупки ${icons.arrow}</a></header>
       ${items.length ? `<div class="cart-layout">
-        <div class="cart-list">${items.map(({ product, quantity, color }) => `<article class="cart-row">
+        <div class="cart-list">${items.map(({ product, quantity, color, size }) => `<article class="cart-row">
           <a class="cart-row__image" href="product.html?id=${encodeURIComponent(product.id)}">${bagArt(product.type, color, product.background)}</a>
           <div class="cart-row__info">
             <a href="product.html?id=${encodeURIComponent(product.id)}">${escapeHTML(product.name)}</a>
-            <span>${colorNames[color] || product.colorName} · ${escapeHTML(product.material)}</span>
-            <button class="cart-row__remove" type="button" data-remove-cart="${product.id}" data-remove-color="${color}">Удалить</button>
+            <span>Цвет: ${colorNames[color] || product.colorName}${size !== "One size" ? ` · Размер: ${size}` : ""}</span>
+            <button class="cart-row__remove" type="button" data-remove-cart="${product.id}" data-remove-color="${color}" data-remove-size="${size}">Удалить</button>
           </div>
           <div class="cart-row__amount">
             <span>${formatPrice(product.price * quantity)}</span>
             <div class="quantity" aria-label="Количество">
-              <button type="button" data-quantity="${product.id}" data-quantity-color="${color}" data-delta="-1" aria-label="Уменьшить количество">−</button>
+              <button type="button" data-quantity="${product.id}" data-quantity-color="${color}" data-quantity-size="${size}" data-delta="-1" aria-label="Уменьшить количество">−</button>
               <span>${quantity}</span>
-              <button type="button" data-quantity="${product.id}" data-quantity-color="${color}" data-delta="1" aria-label="Увеличить количество">+</button>
+              <button type="button" data-quantity="${product.id}" data-quantity-color="${color}" data-quantity-size="${size}" data-delta="1" aria-label="Увеличить количество">+</button>
             </div>
           </div>
         </article>`).join("")}</div>
@@ -782,14 +889,15 @@
     }, { passive: true });
   }
 
-  function addToCart(id, color) {
+  function addToCart(id, color, size) {
     const product = productMap.get(id);
     if (!product) return;
     const cart = getCart();
     const selected = color || product.color;
-    const existing = cart.find((entry) => entry.id === id && entry.color === selected);
+    const selectedSize = size || (product.type === "tote" ? "Medium" : "One size");
+    const existing = cart.find((entry) => entry.id === id && entry.color === selected && entry.size === selectedSize);
     if (existing) existing.quantity += 1;
-    else cart.push({ id, quantity: 1, color: selected });
+    else cart.push({ id, quantity: 1, color: selected, size: selectedSize });
     setCart(cart);
     showToast(`${product.name} добавлена в корзину`);
   }
@@ -847,17 +955,17 @@
     render();
   }
 
-  function changeQuantity(id, color, delta) {
+  function changeQuantity(id, color, size, delta) {
     const cart = getCart();
-    const entry = cart.find((item) => item.id === id && item.color === color);
+    const entry = cart.find((item) => item.id === id && item.color === color && item.size === size);
     if (!entry) return;
     entry.quantity += delta;
     setCart(cart.filter((item) => item.quantity > 0));
     render();
   }
 
-  function removeCartItem(id, color) {
-    setCart(getCart().filter((item) => !(item.id === id && item.color === color)));
+  function removeCartItem(id, color, size) {
+    setCart(getCart().filter((item) => !(item.id === id && item.color === color && item.size === size)));
     render();
     showToast("Товар удалён из корзины");
   }
@@ -909,11 +1017,20 @@
 
     const favorite = target.closest("[data-favorite-toggle]");
     if (favorite) return toggleFavorite(favorite.dataset.favoriteToggle);
+    const quickView = target.closest("[data-quick-view]");
+    if (quickView) return openQuickView(quickView.dataset.quickView);
+    if (target.closest("[data-quick-view-close]") || target.matches("[data-quick-view-backdrop]")) return closeQuickView();
+    const quickViewAdd = target.closest("[data-quick-view-add]");
+    if (quickViewAdd) {
+      addToCart(quickViewAdd.dataset.quickViewAdd, quickViewAdd.dataset.addColor, quickViewAdd.dataset.addSize);
+      closeQuickView();
+      return;
+    }
     const addButton = target.closest("[data-add-cart]");
-    if (addButton) return addToCart(addButton.dataset.addCart, addButton.dataset.addColor);
+    if (addButton) return addToCart(addButton.dataset.addCart, addButton.dataset.addColor, addButton.dataset.addSize);
     const buyButton = target.closest("[data-buy-now]");
     if (buyButton) {
-      addToCart(buyButton.dataset.buyNow, buyButton.dataset.addColor);
+      addToCart(buyButton.dataset.buyNow, buyButton.dataset.addColor, buyButton.dataset.addSize);
       location.href = "cart.html";
       return;
     }
@@ -921,6 +1038,30 @@
     if (heroGo) return setHeroSlide(Number(heroGo.dataset.heroGo));
     if (target.closest("[data-hero-next]")) return setHeroSlide(Number(document.body.dataset.heroIndex || "0") + 1);
     if (target.closest("[data-hero-prev]")) return setHeroSlide(Number(document.body.dataset.heroIndex || "0") - 1);
+    const zoom = target.closest("[data-gallery-zoom]");
+    if (zoom) {
+      const enlarged = zoom.closest(".product-gallery__main").classList.toggle("is-zoomed");
+      zoom.setAttribute("aria-pressed", String(enlarged));
+      return;
+    }
+    if (target.closest("[data-product-video]")) {
+      showToast("Видеообзор появится в полной версии магазина.");
+      return;
+    }
+
+    const size = target.closest("[data-select-size]");
+    if (size && page === "product") {
+      state.selectedSize = size.dataset.selectSize;
+      document.querySelectorAll("[data-select-size]").forEach((button) => {
+        const selected = button === size;
+        button.classList.toggle("is-selected", selected);
+        button.setAttribute("aria-pressed", String(selected));
+      });
+      document.querySelectorAll(".product-info [data-add-cart], .product-info [data-buy-now], .mobile-buybar [data-buy-now]").forEach((button) => {
+        button.dataset.addSize = state.selectedSize;
+      });
+      return;
+    }
 
     const color = target.closest("[data-select-color]");
     if (color && page === "product") {
@@ -936,7 +1077,7 @@
         button.setAttribute("aria-pressed", String(selected));
       });
       document.querySelector("[data-color-name]").textContent = colorNames[state.selectedColor] || product.colorName;
-      document.querySelectorAll("[data-add-color], [data-buy-now]").forEach((button) => button.dataset.addColor = state.selectedColor);
+      document.querySelectorAll(".product-info [data-add-color], .mobile-buybar [data-add-color]").forEach((button) => button.dataset.addColor = state.selectedColor);
       document.querySelector(".mobile-buybar__price .muted").textContent = product.name;
       return;
     }
@@ -963,6 +1104,12 @@
     }
     if (target.closest("[data-filter-close]")) return closeFilterDrawer();
     if (target.closest("[data-filter-reset]")) return resetFilters();
+    const gridColumns = target.closest("[data-grid-columns]");
+    if (gridColumns) {
+      state.catalog.columns = Number(gridColumns.dataset.gridColumns) === 4 ? 4 : 3;
+      render();
+      return;
+    }
     if (target.closest("[data-filter-apply]")) {
       updateCatalogFilters();
       state.drawerOpen = false;
@@ -971,9 +1118,9 @@
     }
 
     const quantity = target.closest("[data-quantity]");
-    if (quantity) return changeQuantity(quantity.dataset.quantity, quantity.dataset.quantityColor, Number(quantity.dataset.delta));
+    if (quantity) return changeQuantity(quantity.dataset.quantity, quantity.dataset.quantityColor, quantity.dataset.quantitySize, Number(quantity.dataset.delta));
     const remove = target.closest("[data-remove-cart]");
-    if (remove) return removeCartItem(remove.dataset.removeCart, remove.dataset.removeColor);
+    if (remove) return removeCartItem(remove.dataset.removeCart, remove.dataset.removeColor, remove.dataset.removeSize);
     if (target.closest("[data-checkout]")) return showCheckout();
     if (target.closest("[data-modal-close]")) return closeCheckout();
     if (target.matches("[data-modal-backdrop]")) return closeCheckout();
@@ -1016,6 +1163,7 @@
       if (document.getElementById("site-menu")?.classList.contains("is-open")) toggleMenu(false);
       if (state.drawerOpen) closeFilterDrawer();
       if (document.querySelector("[data-modal-backdrop].is-open")) closeCheckout();
+      if (document.querySelector("[data-quick-view-backdrop].is-open")) closeQuickView();
     }
   });
 

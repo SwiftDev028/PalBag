@@ -428,54 +428,43 @@
   function heroMarkup() {
     const slides = [
       {
-        eyebrow: "Новая коллекция · Зима 2026",
-        title: "Сумки,<br>которые остаются",
-        description: "Натуральная кожа, чистые линии и продуманные детали.",
-        type: "tote",
-        color: "#8a5a3c",
-        background: "#d9cebf",
-        backdrop: "#efe9e0",
-        link: "catalog.html?category=тоуты",
-        action: "Смотреть коллекцию"
+        eyebrow: "Специальное предложение",
+        title: "Две сумки —<br>10% выгоды",
+        description: "Скидка 10% при покупке двух сумок.",
+        image: "assets/home-banners/promo-two-bags.jpg",
+        imageAlt: "Кожаные сумки в руках модели",
+        backdrop: "#f1eee9",
+        link: "catalog.html",
+        action: "Выбрать сумки"
       },
       {
-        eyebrow: "Мини-сумки",
-        title: "Малый формат,<br>большой характер",
-        description: "Всё необходимое — и ничего лишнего.",
-        type: "mini",
-        color: "#1c1b1a",
-        background: "#cfd2cb",
-        backdrop: "#ebede8",
-        link: "catalog.html?category=мини-сумки",
-        action: "Смотреть коллекцию"
-      },
-      {
-        eyebrow: "Кросс-боди",
-        title: "Лёгкость<br>на каждый день",
-        description: "Руки свободны, образ завершён.",
-        type: "cross",
-        color: "#5a2a2e",
-        background: "#dfcfc9",
-        backdrop: "#f2e9e5",
-        link: "catalog.html?category=кросс-боди",
-        action: "Смотреть коллекцию"
+        eyebrow: "Предложение PalBag",
+        title: "Три сумки —<br>скидка 15%",
+        description: "При покупке трёх сумок скидка составит 15%.",
+        image: "assets/home-banners/promo-three-bags.jpg",
+        imageAlt: "Чёрная сумка-рюкзак на светлом фоне",
+        backdrop: "#f7f7f5",
+        link: "catalog.html",
+        action: "Открыть каталог"
       }
     ];
-    const slidesMarkup = slides.map((slide, index) => `<article class="hero-slide ${index === 0 ? "is-active" : ""}" data-hero-slide="${index}" aria-hidden="${index !== 0}" style="background:${slide.backdrop}">
+    const slidesMarkup = slides.map((slide, index) => `<article class="hero-slide hero-slide--photo ${index === 0 ? "is-active" : ""}" data-hero-slide="${index}" aria-hidden="${index !== 0}" style="background:${slide.backdrop}">
       <div class="hero-copy">
         <span class="eyebrow">${slide.eyebrow}</span>
         <h1 class="display">${slide.title}</h1>
         <p class="lead">${slide.description}</p>
         <a class="button" href="${slide.link}">${slide.action}</a>
       </div>
-      <div class="hero-art">${bagArt(slide.type, slide.color, slide.background)}</div>
+      <div class="hero-art hero-art--photo" style="background:${slide.backdrop}">
+        <img src="${slide.image}" alt="${slide.imageAlt}" loading="eager" decoding="async">
+      </div>
     </article>`).join("");
     const progress = slides.map((slide, index) => `<button type="button" data-hero-go="${index}" aria-label="Баннер ${index + 1}" aria-current="${index === 0}"><span></span></button>`).join("");
-    return `<section class="hero" aria-label="Рекламные баннеры">
+    return `<section class="hero hero--photo" aria-label="Рекламные баннеры">
       <div class="hero-track" id="hero-track">${slidesMarkup}</div>
       <div class="hero-controls">
         <div class="hero-control-group">
-          <span class="hero-counter" id="hero-counter">01 / 03</span>
+          <span class="hero-counter" id="hero-counter">01 / ${String(slides.length).padStart(2, "0")}</span>
           <div class="hero-progress" aria-label="Выбрать баннер">${progress}</div>
         </div>
         <div class="hero-arrows">
@@ -1112,7 +1101,7 @@
       button.setAttribute("aria-current", String(buttonIndex === next));
     });
     const counter = document.getElementById("hero-counter");
-    if (counter) counter.textContent = `0${next + 1} / 03`;
+    if (counter) counter.textContent = `${String(next + 1).padStart(2, "0")} / ${String(slides.length).padStart(2, "0")}`;
     document.querySelectorAll("[data-hero-slide] a").forEach((link) => {
       link.tabIndex = link.closest(".hero-slide").classList.contains("is-active") ? 0 : -1;
     });

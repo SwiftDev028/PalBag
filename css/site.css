@@ -355,6 +355,11 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .hero-art { position: absolute; top: 0; right: 0; width: 60%; height: 100%; }
 .hero-art .bag-scene { height: 100%; min-height: 0; }
 .hero-art .bag-scene .bag-art { width: 90%; height: 95%; transform: scale(1.12) translateY(3%); }
+.hero-art--photo { overflow: hidden; }
+.hero-art--photo img { width: 100%; height: 100%; object-fit: cover; object-position: center; }
+.hero--photo .hero-copy { width: min(460px, 34%); }
+.hero--photo .hero-copy .display { font-size: clamp(58px, 5.25vw, 76px); }
+.hero--photo .hero-arrow { border-color: rgba(23,23,23,.28); background: rgba(255,255,255,.88); color: var(--ink); }
 .hero-controls { position: absolute; z-index: 2; right: 48px; bottom: 40px; left: 48px; display: flex; align-items: center; justify-content: space-between; pointer-events: none; }
 .hero-control-group { display: flex; align-items: center; gap: 28px; pointer-events: auto; }
 .hero-arrows, .hero-progress { display: flex; align-items: center; gap: 10px; pointer-events: auto; }
@@ -772,6 +777,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .hero-art { position: relative; grid-row: 1; width: 100%; height: auto; }
   .hero-art .bag-scene { min-height: 0; height: auto; aspect-ratio: 4 / 5; }
   .hero-art .bag-scene .bag-art { width: 78%; height: 95%; }
+  .hero .hero-slide--photo .hero-art--photo { width: 100%; min-height: 0; aspect-ratio: 4 / 5; }
+  .hero .hero-slide--photo .hero-copy { width: 100%; }
+  .hero .hero-slide--photo .hero-copy .display { font-size: clamp(40px, 12.5vw, 48px); }
   .hero-copy { position: relative; bottom: auto; left: auto; grid-row: 2; width: 100%; gap: 20px; padding: 32px 20px 72px; }
   .hero-copy .display { max-width: 360px; margin: 0; font-size: 52px; }
   .hero-copy .display br { display: none; }

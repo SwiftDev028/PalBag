@@ -85,7 +85,7 @@
           return;
         }
         if (!video.dataset.sourceLoaded) {
-          if (!video.canPlayType('video/mp4; codecs="hvc1"')) {
+          if (!video.canPlayType("video/mp4")) {
             frame?.classList.add("is-fallback");
             currentObserver.unobserve(video);
             return;
@@ -117,6 +117,7 @@
   }
 
   function formatPrice(value) {
+    if (value == null) return "Цена не указана";
     return `${money.format(value)} ₽`;
   }
 
@@ -141,6 +142,7 @@
 
   function getPriceLabel(product) {
     const prices = getSizeOptions(product).map((option) => option.price);
+    if (prices.every((price) => price == null)) return "Цена не указана";
     const lowestPrice = Math.min(...prices);
     return prices.some((price) => price !== lowestPrice) ? `от ${formatPrice(lowestPrice)}` : formatPrice(lowestPrice);
   }
@@ -255,7 +257,7 @@
           ${icons.heart}
         </button>
         <div class="product-card__actions">
-          <button type="button" data-add-cart="${product.id}" data-add-color="${escapeHTML(product.color || "")}" data-add-size="${getDefaultSize(product)}">В корзину</button>
+          ${product.price != null ? `<button type="button" data-add-cart="${product.id}" data-add-color="${escapeHTML(product.color || "")}" data-add-size="${getDefaultSize(product)}">В корзину</button>` : ""}
           <button class="product-card__quick-view" type="button" data-quick-view="${product.id}" aria-label="Быстрый просмотр «${escapeHTML(productLabel)}»">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/></svg>
           </button>
@@ -287,7 +289,7 @@
           ${product.packageContents ? `<p>Материал: ${escapeHTML(product.material)} · Комплектация: ${escapeHTML(product.packageContents)}</p>` : ""}
           <strong>${getPriceLabel(product)}${product.oldPrice ? ` <del>${formatPrice(product.oldPrice)}</del>` : ""}</strong>
           ${hasVariantPrices ? `<p class="quick-view__variant-note">Добавится размер ${escapeHTML(getDefaultSize(product))}. Другой размер можно выбрать на странице товара.</p>` : ""}
-          <button class="button" type="button" data-quick-view-add="${product.id}" data-add-color="${product.color}" data-add-size="${getDefaultSize(product)}">Добавить в корзину</button>
+          ${product.price != null ? `<button class="button" type="button" data-quick-view-add="${product.id}" data-add-color="${product.color}" data-add-size="${getDefaultSize(product)}">Добавить в корзину</button>` : ""}
           <a class="text-link" href="product.html?id=${encodeURIComponent(product.id)}">Подробнее о модели ${icons.arrow}</a>
         </div>
       </section>
@@ -332,6 +334,7 @@
             <a href="catalog.html?sort=popular">Бестселлеры</a>
             <a href="balenciaga.html">BALENCIAGA</a>
             <a href="chanel.html">CHANEL</a>
+            <a href="moschino.html">MOSCHINO</a>
           </nav>
           <a class="brand" href="index.html" aria-label="PalBag — на главную"><span>PAL</span><strong>BAG</strong></a>
           <div class="header-right">
@@ -365,6 +368,7 @@
             <a href="catalog.html">Каталог</a>
             <a href="balenciaga.html">BALENCIAGA</a>
             <a href="chanel.html">CHANEL</a>
+            <a href="moschino.html">MOSCHINO</a>
             <a href="about.html">О бренде</a>
             <a href="delivery.html">Доставка и оплата</a>
             <a href="contacts.html">Контакты</a>
@@ -398,6 +402,7 @@
           <a href="catalog.html?category=тоуты">Тоуты</a>
           <a href="balenciaga.html">BALENCIAGA</a>
           <a href="chanel.html">CHANEL</a>
+          <a href="moschino.html">MOSCHINO</a>
         </nav>
         <nav class="footer-column" aria-label="Покупателям">
           <h2>Покупателям</h2>
@@ -508,7 +513,24 @@
           <h2 class="section-title">BALENCIAGA</h2>
           <p>Bel Air Carry All Bag — выразительный силуэт, продуманные детали и два размера на выбор.</p>
           <a class="button" href="balenciaga.html">Открыть коллекцию ${icons.arrow}</a>
-          <a class="text-link" href="chanel.html">Коллекция CHANEL ${icons.arrow}</a>
+        </div>
+      </section>
+      <section class="brand-editorial brand-editorial--home wrap reveal">
+        <div class="brand-editorial__media"><img src="assets/chanel/chanel-maxi-flap-01-front.jpeg" alt="Chanel Maxi Flap Bag" loading="lazy"></div>
+        <div class="brand-editorial__copy">
+          <span class="eyebrow">Дизайнерские марки · CHANEL</span>
+          <h2 class="section-title">CHANEL</h2>
+          <p>Chanel Maxi Flap Bag — изучите модель, фотографии и видео товара.</p>
+          <a class="button" href="chanel.html">Открыть коллекцию ${icons.arrow}</a>
+        </div>
+      </section>
+      <section class="brand-editorial brand-editorial--home wrap reveal">
+        <div class="brand-editorial__media"><img src="assets/moschino/moschino-tie-me-01-front.jpeg" alt="Moschino Tie Me Bag" loading="lazy"></div>
+        <div class="brand-editorial__copy">
+          <span class="eyebrow">Дизайнерские марки · MOSCHINO</span>
+          <h2 class="section-title">MOSCHINO</h2>
+          <p>Moschino Tie Me Bag — натуральная замша и выразительная форма.</p>
+          <a class="button" href="moschino.html">Открыть коллекцию ${icons.arrow}</a>
         </div>
       </section>
       <section class="home-section wrap reveal">
@@ -681,6 +703,11 @@
             <div><span class="eyebrow">CHANEL</span><p>Откройте отдельную коллекцию бренда.</p></div>
             <a class="text-link" href="chanel.html">Перейти в CHANEL ${icons.arrow}</a>
           </div>
+          <div class="brand-catalog-promo">
+            <img src="assets/moschino/moschino-tie-me-01-front.jpeg" alt="" loading="lazy">
+            <div><span class="eyebrow">MOSCHINO</span><p>Откройте отдельную коллекцию бренда.</p></div>
+            <a class="text-link" href="moschino.html">Перейти в MOSCHINO ${icons.arrow}</a>
+          </div>
           <div class="promo-card"><div><span class="eyebrow">Внимание к каждой детали</span><h2>Выберите сумку для своего ритма</h2></div><a class="text-link" href="about.html">О PalBag ${icons.arrow}</a></div>
         </section>
       </div>
@@ -745,7 +772,9 @@
     const categoryLabel = product.category !== product.brand
       ? categoryNames[product.category] || product.category
       : "";
-    const specifications = product.minimalDetails
+    const specifications = product.specifications
+      ? product.specifications
+      : product.minimalDetails
       ? [["Материал", product.material], ["Комплектация", product.packageContents]]
       : [
           ["Материал", product.material],
@@ -786,11 +815,11 @@
             <div class="product-sizes">${sizeOptions.map((option) => `<button class="product-size ${option.name === size ? "is-selected" : ""}" type="button" data-select-size="${escapeHTML(option.name)}" aria-pressed="${option.name === size}">${option.name === "One size" ? "Универсальный" : escapeHTML(option.name)}</button>`).join("")}</div>
           </div>`}
           ${product.showStockInfo === false ? "" : `<div class="product-stock"><span></span>В наличии · доставим за 2–5 дней</div>`}
-          <div class="product-actions">
+          ${product.price != null ? `<div class="product-actions">
             <button class="button" type="button" data-add-cart="${product.id}" data-add-color="${escapeHTML(color)}" data-add-size="${escapeHTML(size)}">Добавить в корзину</button>
             <button class="icon-button ${favorite ? "is-active" : ""}" type="button" data-favorite-toggle="${product.id}" aria-label="${favorite ? "Убрать из" : "Добавить в"} избранное" aria-pressed="${favorite}">${icons.heart}</button>
             <button class="product-buy-now" type="button" data-buy-now="${product.id}" data-add-color="${escapeHTML(color)}" data-add-size="${escapeHTML(size)}">Купить сейчас</button>
-          </div>
+          </div>` : `<div class="product-actions"><button class="icon-button ${favorite ? "is-active" : ""}" type="button" data-favorite-toggle="${product.id}" aria-label="${favorite ? "Убрать из" : "Добавить в"} избранное" aria-pressed="${favorite}">${icons.heart}</button></div>`}
           <div class="product-accordion">
             <details open><summary>Доставка</summary><p>Доставляем по России курьером и в пункты выдачи. Срок — 2–5 дней, бесплатно от 20 000 ₽.</p></details>
             <details><summary>Возврат</summary><p>Возврат в течение 14 дней при сохранении товарного вида.</p></details>
@@ -805,7 +834,7 @@
     </section>
     ${product.showDemoReviews === false ? "" : `<section class="home-section wrap reveal"><div class="section-head"><h2 class="section-title">Отзывы</h2><a class="text-link" href="#product-specifications">Написать отзыв ${icons.arrow}</a></div><div class="reviews-grid"><article class="quote-card"><span class="quote-stars">★★★★★</span><blockquote>«Сумка выглядит ещё лучше, чем на фото. Кожа мягкая, фурнитура аккуратная»</blockquote><cite>Ольга · покупательница PalBag</cite></article><article class="quote-card"><span class="quote-stars">★★★★★</span><blockquote>«Очень удобный размер и продуманная организация внутри»</blockquote><cite>Мария · покупательница PalBag</cite></article></div></section>`}
     <section class="section wrap reveal"><div class="section-head"><div class="section-head__copy"><span class="eyebrow">В том же настроении</span><h2 class="section-title">Похожие модели</h2></div></div><div class="product-grid">${relatedProducts.map(productCard).join("")}</div></section>
-    <div class="mobile-buybar"><span class="mobile-buybar__price"><strong>${formatPrice(price)}</strong><span class="muted">${escapeHTML(product.name)}${product.variantLabel ? ` · ${escapeHTML(product.variantLabel)}` : ""}</span></span><button class="button" type="button" data-buy-now="${product.id}" data-add-color="${color}" data-add-size="${escapeHTML(size)}">Купить сейчас</button></div>`;
+    <div class="mobile-buybar ${product.price == null ? "mobile-buybar--disabled" : ""}"><span class="mobile-buybar__price"><strong>${formatPrice(price)}</strong><span class="muted">${escapeHTML(product.name)}${product.variantLabel ? ` · ${escapeHTML(product.variantLabel)}` : ""}</span></span>${product.price != null ? `<button class="button" type="button" data-buy-now="${product.id}" data-add-color="${color}" data-add-size="${escapeHTML(size)}">Купить сейчас</button>` : ""}</div>`;
   }
 
   function productNotFoundMarkup() {
@@ -820,7 +849,9 @@
     const featuredProduct = brandProducts[0];
     const description = brand === "CHANEL"
       ? "Модель Chanel Maxi Flap Bag представлена в каталоге PalBag вместе с фотографиями и видео товара."
-      : "Выбранные модели BALENCIAGA в PalBag. Изучите фотографии, характеристики и доступные размеры в карточке товара.";
+      : brand === "MOSCHINO"
+        ? "Модель Moschino Tie Me Bag представлена в каталоге PalBag с фотографиями и указанными характеристиками."
+        : "Выбранные модели BALENCIAGA в PalBag. Изучите фотографии, характеристики и доступные размеры в карточке товара.";
     return `<div class="wrap">
       <nav class="breadcrumb" aria-label="Хлебные крошки"><a href="index.html">Главная</a><span aria-hidden="true">/</span><a href="catalog.html">Каталог</a><span aria-hidden="true">/</span><span aria-current="page">${escapeHTML(brand)}</span></nav>
       <section class="brand-editorial brand-category-hero reveal">

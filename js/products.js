@@ -235,5 +235,43 @@ window.PALBAG_PRODUCTS = [
       "assets/chanel/chanel-maxi-flap-06-interior.jpeg",
       "assets/chanel/chanel-maxi-flap-07-interior-detail.jpeg"
     ]
+  },
+  {
+    id: "moschino-tie-me-bag",
+    name: "Moschino Tie Me Bag",
+    brand: "MOSCHINO",
+    category: "MOSCHINO",
+    type: "shoulder",
+    price: null,
+    oldPrice: null,
+    badge: "MOSCHINO",
+    swatches: [],
+    sizes: [{ name: "One size", price: null }],
+    hideSizeOption: true,
+    showDemoRating: false,
+    showStockInfo: false,
+    showDemoReviews: false,
+    minimalDetails: false,
+    material: "Натуральная замша",
+    depth: "14 см",
+    width: "36 см",
+    height: "18 см",
+    specifications: [
+      ["Материал", "Натуральная замша"],
+      ["Depth", "14 см"],
+      ["Width", "36 см"],
+      ["Height", "18 см"]
+    ],
+    campaignImage: "assets/moschino/moschino-tie-me-01-front.jpeg",
+    images: [
+      "assets/moschino/moschino-tie-me-01-front.jpeg",
+      "assets/moschino/moschino-tie-me-02-side.jpeg",
+      "assets/moschino/moschino-tie-me-03-back.jpeg",
+      "assets/moschino/moschino-tie-me-04-detail.jpeg",
+      "assets/moschino/moschino-tie-me-05-material.jpeg",
+      "assets/moschino/moschino-tie-me-06-interior.jpeg",
+      "assets/moschino/moschino-tie-me-07-interior-detail.jpeg",
+      "assets/moschino/moschino-tie-me-08-closure.jpeg"
+    ]
   }
 ];

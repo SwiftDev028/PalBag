@@ -257,7 +257,7 @@
           ${icons.heart}
         </button>
         <div class="product-card__actions">
-          ${product.price != null ? `<button type="button" data-add-cart="${product.id}" data-add-color="${escapeHTML(product.color || "")}" data-add-size="${getDefaultSize(product)}">В корзину</button>` : ""}
+          <button type="button" ${product.price != null ? `data-add-cart="${product.id}" data-add-color="${escapeHTML(product.color || "")}" data-add-size="${getDefaultSize(product)}"` : `data-price-inquiry="${product.id}"`}>В корзину</button>
           <button class="product-card__quick-view" type="button" data-quick-view="${product.id}" aria-label="Быстрый просмотр «${escapeHTML(productLabel)}»">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/></svg>
           </button>
@@ -289,7 +289,7 @@
           ${product.packageContents ? `<p>Материал: ${escapeHTML(product.material)} · Комплектация: ${escapeHTML(product.packageContents)}</p>` : ""}
           <strong>${getPriceLabel(product)}${product.oldPrice ? ` <del>${formatPrice(product.oldPrice)}</del>` : ""}</strong>
           ${hasVariantPrices ? `<p class="quick-view__variant-note">Добавится размер ${escapeHTML(getDefaultSize(product))}. Другой размер можно выбрать на странице товара.</p>` : ""}
-          ${product.price != null ? `<button class="button" type="button" data-quick-view-add="${product.id}" data-add-color="${product.color}" data-add-size="${getDefaultSize(product)}">Добавить в корзину</button>` : ""}
+          <button class="button" type="button" ${product.price != null ? `data-quick-view-add="${product.id}" data-add-color="${product.color}" data-add-size="${getDefaultSize(product)}"` : `data-price-inquiry="${product.id}"`}>Добавить в корзину</button>
           <a class="text-link" href="product.html?id=${encodeURIComponent(product.id)}">Подробнее о модели ${icons.arrow}</a>
         </div>
       </section>
@@ -819,7 +819,11 @@
             <button class="button" type="button" data-add-cart="${product.id}" data-add-color="${escapeHTML(color)}" data-add-size="${escapeHTML(size)}">Добавить в корзину</button>
             <button class="icon-button ${favorite ? "is-active" : ""}" type="button" data-favorite-toggle="${product.id}" aria-label="${favorite ? "Убрать из" : "Добавить в"} избранное" aria-pressed="${favorite}">${icons.heart}</button>
             <button class="product-buy-now" type="button" data-buy-now="${product.id}" data-add-color="${escapeHTML(color)}" data-add-size="${escapeHTML(size)}">Купить сейчас</button>
-          </div>` : `<div class="product-actions"><button class="icon-button ${favorite ? "is-active" : ""}" type="button" data-favorite-toggle="${product.id}" aria-label="${favorite ? "Убрать из" : "Добавить в"} избранное" aria-pressed="${favorite}">${icons.heart}</button></div>`}
+          </div>` : `<div class="product-actions">
+            <button class="button" type="button" data-price-inquiry="${product.id}">Добавить в корзину</button>
+            <button class="icon-button ${favorite ? "is-active" : ""}" type="button" data-favorite-toggle="${product.id}" aria-label="${favorite ? "Убрать из" : "Добавить в"} избранное" aria-pressed="${favorite}">${icons.heart}</button>
+            <button class="product-buy-now" type="button" data-price-inquiry="${product.id}">Купить сейчас</button>
+          </div>`}
           <div class="product-accordion">
             <details open><summary>Доставка</summary><p>Доставляем по России курьером и в пункты выдачи. Срок — 2–5 дней, бесплатно от 20 000 ₽.</p></details>
             <details><summary>Возврат</summary><p>Возврат в течение 14 дней при сохранении товарного вида.</p></details>
@@ -834,7 +838,7 @@
     </section>
     ${product.showDemoReviews === false ? "" : `<section class="home-section wrap reveal"><div class="section-head"><h2 class="section-title">Отзывы</h2><a class="text-link" href="#product-specifications">Написать отзыв ${icons.arrow}</a></div><div class="reviews-grid"><article class="quote-card"><span class="quote-stars">★★★★★</span><blockquote>«Сумка выглядит ещё лучше, чем на фото. Кожа мягкая, фурнитура аккуратная»</blockquote><cite>Ольга · покупательница PalBag</cite></article><article class="quote-card"><span class="quote-stars">★★★★★</span><blockquote>«Очень удобный размер и продуманная организация внутри»</blockquote><cite>Мария · покупательница PalBag</cite></article></div></section>`}
     <section class="section wrap reveal"><div class="section-head"><div class="section-head__copy"><span class="eyebrow">В том же настроении</span><h2 class="section-title">Похожие модели</h2></div></div><div class="product-grid">${relatedProducts.map(productCard).join("")}</div></section>
-    <div class="mobile-buybar ${product.price == null ? "mobile-buybar--disabled" : ""}"><span class="mobile-buybar__price"><strong>${formatPrice(price)}</strong><span class="muted">${escapeHTML(product.name)}${product.variantLabel ? ` · ${escapeHTML(product.variantLabel)}` : ""}</span></span>${product.price != null ? `<button class="button" type="button" data-buy-now="${product.id}" data-add-color="${color}" data-add-size="${escapeHTML(size)}">Купить сейчас</button>` : ""}</div>`;
+    <div class="mobile-buybar"><span class="mobile-buybar__price"><strong>${formatPrice(price)}</strong><span class="muted">${escapeHTML(product.name)}${product.variantLabel ? ` · ${escapeHTML(product.variantLabel)}` : ""}</span></span><button class="button" type="button" ${product.price != null ? `data-buy-now="${product.id}" data-add-color="${color}" data-add-size="${escapeHTML(size)}"` : `data-price-inquiry="${product.id}"`}>Купить сейчас</button></div>`;
   }
 
   function productNotFoundMarkup() {
@@ -1151,6 +1155,10 @@
   function addToCart(id, color, size) {
     const product = productMap.get(id);
     if (!product) return;
+    if (product.price == null) {
+      showToast("Цена товара уточняется");
+      return;
+    }
     const cart = getCart();
     const selected = color || product.color || "";
     const selectedSize = getSizeOptions(product).some((option) => option.name === size)
@@ -1290,12 +1298,22 @@
       closeQuickView();
       return;
     }
+    const priceInquiry = target.closest("[data-price-inquiry]");
+    if (priceInquiry) {
+      showToast("Цена товара уточняется");
+      return;
+    }
     const addButton = target.closest("[data-add-cart]");
     if (addButton) return addToCart(addButton.dataset.addCart, addButton.dataset.addColor, addButton.dataset.addSize);
     const buyButton = target.closest("[data-buy-now]");
     if (buyButton) {
-      addToCart(buyButton.dataset.buyNow, buyButton.dataset.addColor, buyButton.dataset.addSize);
-      location.href = "cart.html";
+      const product = productMap.get(buyButton.dataset.buyNow);
+      if (product?.price != null) {
+        addToCart(buyButton.dataset.buyNow, buyButton.dataset.addColor, buyButton.dataset.addSize);
+        location.href = "cart.html";
+      } else {
+        showToast("Цена товара уточняется");
+      }
       return;
     }
     const heroGo = target.closest("[data-hero-go]");

@@ -536,8 +536,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .product-actions { display: grid; grid-template-columns: 1fr 52px; gap: 10px; margin-top: 25px; }
 .product-actions .button { width: 100%; }
 .product-actions .icon-button { width: 52px; height: 54px; border: 1px solid var(--line); }
-.product-actions .product-buy-now { grid-column: 1 / -1; width: 100%; }
-.product-buy-now.is-disabled, .mobile-buybar__buy.is-disabled { cursor: not-allowed; opacity: .55; }
+.product-actions .product-buy-now { grid-column: 1 / -1; width: 100%; min-height: 58px; font-size: 12px; }
+.product-buy-now.is-disabled { cursor: not-allowed; }
+.mobile-buybar__buy.is-disabled { cursor: not-allowed; opacity: .55; }
+.product-actions .product-buy-now.is-disabled:hover { background: var(--ink); color: #fff; }
 .product-benefits { display: grid; gap: 13px; margin-top: 25px; padding-top: 20px; border-top: 1px solid var(--line); }
 .product-benefits__row { display: flex; align-items: center; gap: 12px; color: #4f4e4b; font-size: 11px; }
 .product-benefits__row svg { width: 18px; height: 18px; flex: 0 0 auto; fill: none; stroke: currentColor; stroke-width: 1.3; }

@@ -820,13 +820,13 @@
           </div>`}
           ${product.showStockInfo === false ? "" : `<div class="product-stock"><span></span>В наличии · доставим за 2–5 дней</div>`}
           ${product.price != null ? `<div class="product-actions">
-            <button class="button" type="button" data-add-cart="${product.id}" data-add-color="${escapeHTML(color)}" data-add-size="${escapeHTML(size)}">Добавить в корзину</button>
+            ${telegramBuyLink("button product-buy-now")}
+            <button class="button button--outline" type="button" data-add-cart="${product.id}" data-add-color="${escapeHTML(color)}" data-add-size="${escapeHTML(size)}">Добавить в корзину</button>
             <button class="icon-button ${favorite ? "is-active" : ""}" type="button" data-favorite-toggle="${product.id}" aria-label="${favorite ? "Убрать из" : "Добавить в"} избранное" aria-pressed="${favorite}">${icons.heart}</button>
-            ${telegramBuyLink("product-buy-now")}
           </div>` : `<div class="product-actions">
-            <button class="button" type="button" data-price-inquiry="${product.id}">Добавить в корзину</button>
+            ${telegramBuyLink("button product-buy-now")}
+            <button class="button button--outline" type="button" data-price-inquiry="${product.id}">Добавить в корзину</button>
             <button class="icon-button ${favorite ? "is-active" : ""}" type="button" data-favorite-toggle="${product.id}" aria-label="${favorite ? "Убрать из" : "Добавить в"} избранное" aria-pressed="${favorite}">${icons.heart}</button>
-            ${telegramBuyLink("product-buy-now")}
           </div>`}
           <div class="product-accordion">
             <details open><summary>Доставка</summary><p>Доставляем по России курьером и в пункты выдачи. Срок — 2–5 дней, бесплатно от 20 000 ₽.</p></details>

@@ -244,6 +244,146 @@ window.PALBAG_PRODUCTS = [
     ]
   },
   {
+    id: "balenciaga-rodeo",
+    name: "Balenciaga Rodeo",
+    brand: "BALENCIAGA",
+    type: "shoulder",
+    category: "на плечо",
+    price: 14000,
+    sizes: [
+      { name: "Small", price: 14000 },
+      { name: "Medium", price: 16000 },
+      { name: "Large", price: 18000 }
+    ],
+    variantLabel: "Коричневый цвет",
+    oldPrice: null,
+    badge: "BALENCIAGA",
+    swatches: [],
+    showDemoRating: false,
+    showStockInfo: false,
+    showDemoReviews: false,
+    minimalDetails: true,
+    material: "Натуральная кожа",
+    specifications: [["Материал", "Натуральная кожа"]],
+    campaignImage: "assets/balenciaga/rodeo-01.jpeg",
+    images: [
+      "assets/balenciaga/rodeo-01.jpeg",
+      "assets/balenciaga/rodeo-02.jpeg",
+      "assets/balenciaga/rodeo-03.jpeg",
+      "assets/balenciaga/rodeo-04.jpeg",
+      "assets/balenciaga/rodeo-05.jpeg",
+      "assets/balenciaga/rodeo-06.jpeg",
+      "assets/balenciaga/rodeo-07.jpeg",
+      "assets/balenciaga/rodeo-08.jpeg",
+      "assets/balenciaga/rodeo-09.jpeg"
+    ]
+  },
+  {
+    id: "balenciaga-rodeo-alt-color",
+    name: "Balenciaga Rodeo",
+    brand: "BALENCIAGA",
+    type: "shoulder",
+    category: "на плечо",
+    price: 14000,
+    sizes: [
+      { name: "Small", price: 14000 },
+      { name: "Medium", price: 16000 },
+      { name: "Large", price: 18000 }
+    ],
+    variantLabel: "Тёмный оттенок, золотистая фурнитура",
+    oldPrice: null,
+    badge: "BALENCIAGA",
+    swatches: [],
+    showDemoRating: false,
+    showStockInfo: false,
+    showDemoReviews: false,
+    minimalDetails: true,
+    material: "Натуральная кожа",
+    specifications: [["Материал", "Натуральная кожа"]],
+    campaignImage: "assets/balenciaga/rodeo-alt-01.jpeg",
+    images: [
+      "assets/balenciaga/rodeo-alt-01.jpeg",
+      "assets/balenciaga/rodeo-alt-02.jpeg",
+      "assets/balenciaga/rodeo-alt-03.jpeg",
+      "assets/balenciaga/rodeo-alt-04.jpeg",
+      "assets/balenciaga/rodeo-alt-05.jpeg",
+      "assets/balenciaga/rodeo-alt-06.jpeg",
+      "assets/balenciaga/rodeo-alt-07.jpeg",
+      "assets/balenciaga/rodeo-alt-08.jpeg"
+    ]
+  },
+  {
+    id: "balenciaga-rodeo-third-color",
+    name: "Balenciaga Rodeo",
+    brand: "BALENCIAGA",
+    type: "shoulder",
+    category: "на плечо",
+    price: 14000,
+    sizes: [
+      { name: "Small", price: 14000 },
+      { name: "Medium", price: 16000 },
+      { name: "Large", price: 18000 }
+    ],
+    variantLabel: "Тёмный оттенок, серебристая фурнитура",
+    oldPrice: null,
+    badge: "BALENCIAGA",
+    swatches: [],
+    showDemoRating: false,
+    showStockInfo: false,
+    showDemoReviews: false,
+    minimalDetails: true,
+    material: "Натуральная кожа",
+    specifications: [["Материал", "Натуральная кожа"]],
+    campaignImage: "assets/balenciaga/rodeo-third-01.jpeg",
+    images: [
+      "assets/balenciaga/rodeo-third-01.jpeg",
+      "assets/balenciaga/rodeo-third-02.jpeg",
+      "assets/balenciaga/rodeo-third-03.jpeg",
+      "assets/balenciaga/rodeo-third-04.jpeg",
+      "assets/balenciaga/rodeo-third-05.jpeg",
+      "assets/balenciaga/rodeo-third-06.jpeg"
+    ]
+  },
+  {
+    id: "balenciaga-rodeo-black",
+    name: "Balenciaga Rodeo",
+    brand: "BALENCIAGA",
+    type: "shoulder",
+    category: "на плечо",
+    price: 14000,
+    sizes: [
+      { name: "Small", price: 14000 },
+      { name: "Medium", price: 16000 },
+      { name: "Large", price: 18000 }
+    ],
+    variantLabel: "Чёрный цвет, золотистая фурнитура",
+    oldPrice: null,
+    badge: "BALENCIAGA",
+    swatches: [],
+    showDemoRating: false,
+    showStockInfo: false,
+    showDemoReviews: false,
+    minimalDetails: true,
+    material: "Натуральная кожа",
+    specifications: [["Материал", "Натуральная кожа"]],
+    campaignImage: "assets/balenciaga/rodeo-black-01.jpeg",
+    images: [
+      "assets/balenciaga/rodeo-black-01.jpeg",
+      "assets/balenciaga/rodeo-black-02.jpeg",
+      "assets/balenciaga/rodeo-black-03.jpeg",
+      "assets/balenciaga/rodeo-black-04.jpeg",
+      "assets/balenciaga/rodeo-black-05.jpeg",
+      "assets/balenciaga/rodeo-black-06.jpeg",
+      "assets/balenciaga/rodeo-black-07.jpeg",
+      "assets/balenciaga/rodeo-black-08.jpeg",
+      "assets/balenciaga/rodeo-black-09.jpeg",
+      "assets/balenciaga/rodeo-black-10.jpeg",
+      "assets/balenciaga/rodeo-black-11.jpeg",
+      "assets/balenciaga/rodeo-black-12.jpeg",
+      "assets/balenciaga/rodeo-black-13.jpeg"
+    ]
+  },
+  {
     id: "chanel-maxi-flap-bag",
     name: "Chanel Maxi Flap Bag",
     brand: "CHANEL",
@@ -306,6 +446,35 @@ window.PALBAG_PRODUCTS = [
       "assets/moschino/moschino-tie-me-06-interior.jpeg",
       "assets/moschino/moschino-tie-me-07-interior-detail.jpeg",
       "assets/moschino/moschino-tie-me-08-closure.jpeg"
+    ]
+  },
+  {
+    id: "ysl-soft-niki-medium-lambskin",
+    name: "YSL Soft Niki Medium in Lambskin",
+    brand: "SAINT LAURENT",
+    category: "SAINT LAURENT",
+    type: "shoulder",
+    price: 15000,
+    oldPrice: null,
+    badge: "SAINT LAURENT",
+    swatches: [],
+    hideSizeOption: true,
+    showDemoRating: false,
+    showStockInfo: false,
+    showDemoReviews: false,
+    minimalDetails: true,
+    material: "Натуральная кожа",
+    specifications: [["Материал", "Натуральная кожа"]],
+    campaignImage: "assets/saint-laurent/ysl-soft-niki-01.jpeg",
+    images: [
+      "assets/saint-laurent/ysl-soft-niki-01.jpeg",
+      "assets/saint-laurent/ysl-soft-niki-02.jpeg",
+      "assets/saint-laurent/ysl-soft-niki-03.jpeg",
+      "assets/saint-laurent/ysl-soft-niki-04.jpeg",
+      "assets/saint-laurent/ysl-soft-niki-05.jpeg",
+      "assets/saint-laurent/ysl-soft-niki-06.jpeg",
+      "assets/saint-laurent/ysl-soft-niki-07.jpeg",
+      "assets/saint-laurent/ysl-soft-niki-08.jpeg"
     ]
   }
 ];

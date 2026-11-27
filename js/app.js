@@ -5,6 +5,7 @@
   const productMap = new Map(products.map((product) => [product.id, product]));
   const page = document.body.dataset.page || "home";
   const pageBrand = document.body.dataset.brand || "BALENCIAGA";
+  const telegramUrl = "https://t.me/almirkhialov";
   const money = new Intl.NumberFormat("ru-RU");
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const colorNames = {
@@ -245,7 +246,11 @@
     const favorite = getFavorites().includes(product.id);
     const sizeOptions = getSizeOptions(product);
     const hasVariantPrices = new Set(sizeOptions.map((option) => option.price)).size > 1;
+    const requiresSizeSelection = !product.hideSizeOption && sizeOptions.length > 1;
     const productLabel = product.variantLabel ? `${product.name} — ${product.variantLabel}` : product.name;
+    const buyHref = requiresSizeSelection
+      ? `product.html?id=${encodeURIComponent(product.id)}`
+      : telegramUrl;
     return `<article class="product-card">
       <div class="product-card__visual">
         <a class="product-card__image" href="product.html?id=${encodeURIComponent(product.id)}" aria-label="Открыть товар «${escapeHTML(productLabel)}»">
@@ -272,6 +277,7 @@
         ${product.variantLabel ? `<span class="product-card__note">${escapeHTML(product.variantLabel)}</span>` : ""}
         ${hasVariantPrices ? `<span class="product-card__note">${sizeOptions.map((option) => `${escapeHTML(option.name)} — ${formatPrice(option.price)}`).join(" · ")}</span>` : ""}
       </div>
+      <a class="button button--small product-card__buy" href="${buyHref}" ${requiresSizeSelection ? "" : `target="_blank" rel="noopener noreferrer"`} aria-label="${requiresSizeSelection ? `Выбрать размер и купить «${escapeHTML(productLabel)}»` : `Купить «${escapeHTML(productLabel)}» в Telegram`}">Купить</a>
     </article>`;
   }
 
@@ -335,6 +341,7 @@
             <a href="balenciaga.html">BALENCIAGA</a>
             <a href="chanel.html">CHANEL</a>
             <a href="moschino.html">MOSCHINO</a>
+            <a href="saint-laurent.html">SAINT LAURENT</a>
           </nav>
           <a class="brand" href="index.html" aria-label="PalBag — на главную"><span>PAL</span><strong>BAG</strong></a>
           <div class="header-right">
@@ -369,6 +376,7 @@
             <a href="balenciaga.html">BALENCIAGA</a>
             <a href="chanel.html">CHANEL</a>
             <a href="moschino.html">MOSCHINO</a>
+            <a href="saint-laurent.html">SAINT LAURENT</a>
             <a href="about.html">О бренде</a>
             <a href="delivery.html">Доставка и оплата</a>
             <a href="contacts.html">Контакты</a>
@@ -403,6 +411,7 @@
           <a href="balenciaga.html">BALENCIAGA</a>
           <a href="chanel.html">CHANEL</a>
           <a href="moschino.html">MOSCHINO</a>
+          <a href="saint-laurent.html">SAINT LAURENT</a>
         </nav>
         <nav class="footer-column" aria-label="Покупателям">
           <h2>Покупателям</h2>
@@ -413,7 +422,7 @@
         </nav>
         <nav class="footer-column" aria-label="Социальные сети">
           <h2>Социальные сети</h2>
-          <a href="https://t.me/">Telegram</a>
+          <a href="${telegramUrl}">Telegram</a>
           <a href="https://vk.com/">VK</a>
           <a href="https://pinterest.com/">Pinterest</a>
         </nav>
@@ -580,7 +589,7 @@
       <section class="home-section home-social wrap reveal">
         <div class="section-head">
           <div class="section-head__copy"><span class="eyebrow">Социальные сети</span><h2 class="section-title">PalBag в Telegram и VK</h2></div>
-          <div class="home-social__links"><a class="text-link" href="https://t.me/">Telegram</a><a class="text-link" href="https://vk.com/">VK</a></div>
+          <div class="home-social__links"><a class="text-link" href="${telegramUrl}">Telegram</a><a class="text-link" href="https://vk.com/">VK</a></div>
         </div>
         <div class="social-grid" aria-label="Коллекция PalBag">
           ${[
@@ -697,6 +706,11 @@
             <div><span class="eyebrow">MOSCHINO</span><p>Откройте отдельную коллекцию бренда.</p></div>
             <a class="text-link" href="moschino.html">Перейти в MOSCHINO ${icons.arrow}</a>
           </div>
+          <div class="brand-catalog-promo">
+            <img src="assets/saint-laurent/ysl-soft-niki-01.jpeg" alt="" loading="lazy">
+            <div><span class="eyebrow">SAINT LAURENT</span><p>Откройте отдельную коллекцию бренда.</p></div>
+            <a class="text-link" href="saint-laurent.html">Перейти в SAINT LAURENT ${icons.arrow}</a>
+          </div>
           <div class="promo-card"><div><span class="eyebrow">Внимание к каждой детали</span><h2>Выберите сумку для своего ритма</h2></div><a class="text-link" href="about.html">О PalBag ${icons.arrow}</a></div>
         </section>
       </div>
@@ -757,7 +771,12 @@
     const size = state.selectedSize || getDefaultSize(product);
     const price = getProductPrice(product, size);
     const sizeOptions = getSizeOptions(product);
+    const requiresSizeSelection = !product.hideSizeOption && sizeOptions.length > 1;
     const colorOptions = product.swatches || [];
+    const telegramBuyAttributes = requiresSizeSelection
+      ? `href="#product-size-options" aria-disabled="true" data-size-required="true"`
+      : `href="${telegramUrl}" target="_blank" rel="noopener noreferrer"`;
+    const telegramBuyLink = (className) => `<a class="${className}${requiresSizeSelection ? " is-disabled" : ""}" data-telegram-buy ${telegramBuyAttributes}>Купить</a>`;
     const categoryLabel = product.category !== product.brand
       ? categoryNames[product.category] || product.category
       : "";
@@ -801,17 +820,20 @@
           </div>` : ""}
           ${product.hideSizeOption ? "" : `<div class="product-option">
             <div class="product-option__head"><strong>Размер</strong><a href="#product-specifications">Размеры</a></div>
-            <div class="product-sizes">${sizeOptions.map((option) => `<button class="product-size ${option.name === size ? "is-selected" : ""}" type="button" data-select-size="${escapeHTML(option.name)}" aria-pressed="${option.name === size}">${option.name === "One size" ? "Универсальный" : escapeHTML(option.name)}</button>`).join("")}</div>
+            <div class="product-sizes" id="product-size-options">${sizeOptions.map((option) => {
+              const selected = state.selectedSize === option.name || (!requiresSizeSelection && option.name === size);
+              return `<button class="product-size ${selected ? "is-selected" : ""}" type="button" data-select-size="${escapeHTML(option.name)}" aria-pressed="${selected}">${option.name === "One size" ? "Универсальный" : escapeHTML(option.name)}</button>`;
+            }).join("")}</div>
           </div>`}
           ${product.showStockInfo === false ? "" : `<div class="product-stock"><span></span>В наличии · доставим за 2–5 дней</div>`}
           ${product.price != null ? `<div class="product-actions">
             <button class="button" type="button" data-add-cart="${product.id}" data-add-color="${escapeHTML(color)}" data-add-size="${escapeHTML(size)}">Добавить в корзину</button>
             <button class="icon-button ${favorite ? "is-active" : ""}" type="button" data-favorite-toggle="${product.id}" aria-label="${favorite ? "Убрать из" : "Добавить в"} избранное" aria-pressed="${favorite}">${icons.heart}</button>
-            <button class="product-buy-now" type="button" data-buy-now="${product.id}" data-add-color="${escapeHTML(color)}" data-add-size="${escapeHTML(size)}">Купить сейчас</button>
+            ${telegramBuyLink("product-buy-now")}
           </div>` : `<div class="product-actions">
             <button class="button" type="button" data-price-inquiry="${product.id}">Добавить в корзину</button>
             <button class="icon-button ${favorite ? "is-active" : ""}" type="button" data-favorite-toggle="${product.id}" aria-label="${favorite ? "Убрать из" : "Добавить в"} избранное" aria-pressed="${favorite}">${icons.heart}</button>
-            <button class="product-buy-now" type="button" data-price-inquiry="${product.id}">Купить сейчас</button>
+            ${telegramBuyLink("product-buy-now")}
           </div>`}
           <div class="product-accordion">
             <details open><summary>Доставка</summary><p>Доставляем по России курьером и в пункты выдачи. Срок — 2–5 дней, бесплатно от 20 000 ₽.</p></details>
@@ -827,7 +849,7 @@
     </section>
     ${product.showDemoReviews === false ? "" : `<section class="home-section wrap reveal"><div class="section-head"><h2 class="section-title">Отзывы</h2><a class="text-link" href="#product-specifications">Написать отзыв ${icons.arrow}</a></div><div class="reviews-grid"><article class="quote-card"><span class="quote-stars">★★★★★</span><blockquote>«Сумка выглядит ещё лучше, чем на фото. Кожа мягкая, фурнитура аккуратная»</blockquote><cite>Ольга · покупательница PalBag</cite></article><article class="quote-card"><span class="quote-stars">★★★★★</span><blockquote>«Очень удобный размер и продуманная организация внутри»</blockquote><cite>Мария · покупательница PalBag</cite></article></div></section>`}
     <section class="section wrap reveal"><div class="section-head"><div class="section-head__copy"><span class="eyebrow">В том же настроении</span><h2 class="section-title">Похожие модели</h2></div></div><div class="product-grid">${relatedProducts.map(productCard).join("")}</div></section>
-    <div class="mobile-buybar"><span class="mobile-buybar__price"><strong>${formatPrice(price)}</strong><span class="muted">${escapeHTML(product.name)}${product.variantLabel ? ` · ${escapeHTML(product.variantLabel)}` : ""}</span></span><button class="button" type="button" ${product.price != null ? `data-buy-now="${product.id}" data-add-color="${color}" data-add-size="${escapeHTML(size)}"` : `data-price-inquiry="${product.id}"`}>Купить сейчас</button></div>`;
+    <div class="mobile-buybar"><span class="mobile-buybar__price"><strong>${formatPrice(price)}</strong><span class="muted">${escapeHTML(product.name)}${product.variantLabel ? ` · ${escapeHTML(product.variantLabel)}` : ""}</span></span>${telegramBuyLink("button mobile-buybar__buy")}</div>`;
   }
 
   function productNotFoundMarkup() {
@@ -844,7 +866,9 @@
       ? "Модель Chanel Maxi Flap Bag представлена в каталоге PalBag вместе с фотографиями и видео товара."
       : brand === "MOSCHINO"
         ? "Модель Moschino Tie Me Bag представлена в каталоге PalBag с фотографиями и указанными характеристиками."
-        : "Выбранные модели BALENCIAGA в PalBag. Изучите фотографии, характеристики и доступные размеры в карточке товара.";
+        : brand === "SAINT LAURENT"
+          ? "Модель YSL Soft Niki Medium in Lambskin представлена в каталоге PalBag с фотографиями товара."
+          : "Выбранные модели BALENCIAGA в PalBag. Изучите фотографии, характеристики и доступные размеры в карточке товара.";
     return `<div class="wrap">
       <nav class="breadcrumb" aria-label="Хлебные крошки"><a href="index.html">Главная</a><span aria-hidden="true">/</span><a href="catalog.html">Каталог</a><span aria-hidden="true">/</span><span aria-current="page">${escapeHTML(brand)}</span></nav>
       <section class="brand-editorial brand-category-hero reveal">
@@ -888,6 +912,7 @@
         <div class="cart-list">${items.map(({ product, quantity, color, size }) => {
           const itemDetails = [
             color && product.colorName ? `Цвет: ${colorNames[color] || product.colorName}` : "",
+            product.variantLabel || "",
             size !== "One size" ? `Размер: ${size}` : "",
             product.packageContents ? `Комплектация: ${product.packageContents}` : ""
           ].filter(Boolean);
@@ -1276,6 +1301,13 @@
     if (target.closest("[data-menu-close]")) return toggleMenu(false);
     if (target.closest("[data-mobile-search]")) return openMobileSearch();
 
+    const telegramBuy = target.closest("[data-telegram-buy]");
+    if (telegramBuy && telegramBuy.getAttribute("aria-disabled") === "true") {
+      event.preventDefault();
+      showToast("Сначала выберите размер");
+      return;
+    }
+
     const favorite = target.closest("[data-favorite-toggle]");
     if (favorite) return toggleFavorite(favorite.dataset.favoriteToggle);
     const quickView = target.closest("[data-quick-view]");
@@ -1294,17 +1326,6 @@
     }
     const addButton = target.closest("[data-add-cart]");
     if (addButton) return addToCart(addButton.dataset.addCart, addButton.dataset.addColor, addButton.dataset.addSize);
-    const buyButton = target.closest("[data-buy-now]");
-    if (buyButton) {
-      const product = productMap.get(buyButton.dataset.buyNow);
-      if (product?.price != null) {
-        addToCart(buyButton.dataset.buyNow, buyButton.dataset.addColor, buyButton.dataset.addSize);
-        location.href = "cart.html";
-      } else {
-        showToast("Цена товара уточняется");
-      }
-      return;
-    }
     const heroGo = target.closest("[data-hero-go]");
     if (heroGo) return setHeroSlide(Number(heroGo.dataset.heroGo));
     if (target.closest("[data-hero-next]")) return setHeroSlide(Number(document.body.dataset.heroIndex || "0") + 1);
@@ -1336,8 +1357,16 @@
         button.classList.toggle("is-selected", selected);
         button.setAttribute("aria-pressed", String(selected));
       });
-      document.querySelectorAll(".product-info [data-add-cart], .product-info [data-buy-now], .mobile-buybar [data-buy-now]").forEach((button) => {
+      document.querySelectorAll(".product-info [data-add-cart]").forEach((button) => {
         button.dataset.addSize = state.selectedSize;
+      });
+      document.querySelectorAll("[data-telegram-buy][data-size-required]").forEach((link) => {
+        link.href = telegramUrl;
+        link.setAttribute("aria-disabled", "false");
+        link.classList.remove("is-disabled");
+        link.removeAttribute("data-size-required");
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
       });
       return;
     }

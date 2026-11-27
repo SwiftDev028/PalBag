@@ -613,9 +613,11 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .info-aside { align-self: start; position: sticky; top: 100px; }
 .info-aside p { color: var(--mute); font-size: 12px; line-height: 1.7; }
 .info-content h2 { margin: 0 0 15px; font-family: var(--serif); font-size: 36px; font-weight: 300; }
+.info-content #returns ~ h3 { margin: 34px 0 12px; font-family: var(--serif); font-size: 25px; font-weight: 400; line-height: 1.25; }
 .info-content p, .info-content li { color: #4f4e4b; font-size: 13px; line-height: 1.9; }
 .info-content p { margin: 0 0 16px; }
-.info-content ul { display: grid; gap: 8px; margin: 0 0 40px; padding-left: 19px; }
+.info-content ul, .info-content ol { display: grid; gap: 8px; margin: 0 0 40px; padding-left: 19px; }
+.info-content #returns ~ ul, .info-content #returns ~ ol { margin-bottom: 24px; }
 .delivery-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-block: 32px 48px; }
 .delivery-card { min-height: 182px; padding: 24px; border: 1px solid var(--line); }
 .delivery-card svg { width: 24px; height: 24px; margin-bottom: 20px; fill: none; stroke: var(--ink); stroke-width: 1.2; }

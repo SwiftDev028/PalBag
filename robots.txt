@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://swiftdev028.github.io/PalBag/sitemap.xml

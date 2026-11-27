@@ -2,6 +2,8 @@
   "use strict";
 
   const products = window.PALBAG_PRODUCTS;
+  const reviewsByProduct = window.PALBAG_REVIEWS || {};
+  const seoConfig = window.PALBAG_SEO_CONFIG;
   const productMap = new Map(products.map((product) => [product.id, product]));
   const page = document.body.dataset.page || "home";
   const pageBrand = document.body.dataset.brand || "BALENCIAGA";
@@ -22,6 +24,14 @@
     "мини-сумки": "Мини-сумки"
   };
   const brands = [...new Set(products.map((product) => product.brand).filter(Boolean))].sort();
+  const imageDimensionOverrides = {
+    "assets/balenciaga/bel-air-03-back.jpeg": [768, 989],
+    "assets/balenciaga/rodeo-black-02.jpeg": [768, 868],
+    "assets/balenciaga/lookbook-carry-all-01.jpg": [768, 768],
+    "assets/balenciaga/lookbook-carry-all-02.jpg": [768, 768],
+    "assets/home-banners/promo-two-bags.jpg": [768, 768],
+    "assets/home-banners/promo-three-bags.jpg": [1964, 768]
+  };
   const state = {
     catalog: {
       categories: new Set(new URLSearchParams(location.search).getAll("category")),
@@ -35,6 +45,7 @@
     drawerOpen: false,
     selectedColor: null,
     selectedSize: null,
+    reviews: { productId: null, sort: "date-desc", visible: 6 },
     toastTimer: null,
     heroTimer: null
   };
@@ -147,6 +158,307 @@
     return prices.some((price) => price !== lowestPrice) ? `от ${formatPrice(lowestPrice)}` : formatPrice(lowestPrice);
   }
 
+  function getProductReviews(productId) {
+    const records = Array.isArray(reviewsByProduct[productId]) ? reviewsByProduct[productId] : [];
+    return records.filter((review) => review?.source === "customer");
+  }
+
+  function getReviewSummary(productId) {
+    const reviews = getProductReviews(productId);
+    if (!reviews.length) return { count: 0, average: null };
+    const average = reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length;
+    return {
+      count: reviews.length,
+      average: Number(average.toFixed(1))
+    };
+  }
+
+  function formatReviewDate(value) {
+    return new Intl.DateTimeFormat("ru-RU", {
+      day: "numeric",
+      month: "long",
+      year: "numeric"
+    }).format(new Date(`${value}T12:00:00`));
+  }
+
+  function productRatingMarkup(productId, className = "product-rating") {
+    const summary = getReviewSummary(productId);
+    if (!summary.count) return "";
+    const average = summary.average.toFixed(1).replace(".", ",");
+    const countLabel = `${summary.count} ${pluralRu(summary.count, ["отзыв", "отзыва", "отзывов"])}`;
+    const currentProductId = new URLSearchParams(location.search).get("id");
+    const href = page === "product" && currentProductId === productId
+      ? "#product-reviews"
+      : `product.html?id=${encodeURIComponent(productId)}#product-reviews`;
+    return `<a class="${escapeHTML(className)}" href="${href}" aria-label="${escapeHTML(`Оценка ${average} из 5, ${countLabel}`)}">
+      <span class="product-rating__stars" aria-hidden="true">★★★★★</span>
+      <span class="product-rating__value"><strong>${average}</strong><span>${countLabel}</span></span>
+    </a>`;
+  }
+
+  function productReviewsMarkup(productId) {
+    const reviews = getProductReviews(productId);
+    const summary = getReviewSummary(productId);
+    if (!reviews.length) {
+      return `<section class="product-reviews section wrap" id="product-reviews" aria-labelledby="product-reviews-title">
+        <header class="product-reviews__header">
+          <div class="product-reviews__heading">
+            <span class="eyebrow">Отзывы покупателей</span>
+            <h2 class="section-title" id="product-reviews-title">Отзывы о модели</h2>
+            <p>Пока нет опубликованных отзывов об этой модели.</p>
+          </div>
+        </header>
+        <div class="product-reviews__empty">
+          <p>Хотите поделиться впечатлением о покупке? Напишите нам в Telegram.</p>
+          <a class="text-link" href="${telegramUrl}" target="_blank" rel="noopener noreferrer">Связаться с магазином ${icons.arrow}</a>
+        </div>
+      </section>`;
+    }
+
+    const orderedReviews = [...reviews].sort((first, second) => {
+      const dateOrder = second.date.localeCompare(first.date);
+      if (state.reviews.sort === "date-asc") return -dateOrder;
+      if (state.reviews.sort === "rating-desc") return second.rating - first.rating || dateOrder;
+      if (state.reviews.sort === "rating-asc") return first.rating - second.rating || dateOrder;
+      return dateOrder;
+    });
+    const visibleReviews = orderedReviews.slice(0, state.reviews.visible);
+    const average = summary.average.toFixed(1).replace(".", ",");
+    const countLabel = `${summary.count} ${pluralRu(summary.count, ["отзыв", "отзыва", "отзывов"])}`;
+
+    return `<section class="product-reviews section wrap" id="product-reviews" aria-labelledby="product-reviews-title">
+      <header class="product-reviews__header">
+        <div class="product-reviews__heading">
+          <span class="eyebrow">Отзывы покупателей</span>
+          <h2 class="section-title" id="product-reviews-title">Отзывы о модели</h2>
+          <p>Опубликованные отзывы покупателей о модели.</p>
+        </div>
+        <div class="product-reviews__summary" aria-label="${escapeHTML(`Средняя оценка ${average} из 5, ${countLabel}`)}">
+          <strong>${average}</strong>
+          <span class="product-reviews__stars" aria-hidden="true">★★★★★</span>
+          <span>${countLabel}</span>
+        </div>
+      </header>
+      <div class="product-reviews__toolbar">
+        <span>${countLabel}</span>
+        <label>Сортировка
+          <select data-review-sort aria-label="Сортировать отзывы">
+            <option value="date-desc" ${state.reviews.sort === "date-desc" ? "selected" : ""}>Сначала новые</option>
+            <option value="date-asc" ${state.reviews.sort === "date-asc" ? "selected" : ""}>Сначала старые</option>
+            <option value="rating-desc" ${state.reviews.sort === "rating-desc" ? "selected" : ""}>Сначала выше оценка</option>
+            <option value="rating-asc" ${state.reviews.sort === "rating-asc" ? "selected" : ""}>Сначала ниже оценка</option>
+          </select>
+        </label>
+      </div>
+      <div class="product-reviews__list" aria-live="polite">
+        ${visibleReviews.map((review) => `<article class="product-review" data-review-id="${escapeHTML(review.id)}">
+          <header class="product-review__meta">
+            <strong>${escapeHTML(review.author)}</strong>
+            <time datetime="${escapeHTML(review.date)}">${formatReviewDate(review.date)}</time>
+          </header>
+          <div class="product-review__stars" aria-label="${escapeHTML(`Оценка: ${review.rating} из 5`)}">${"★".repeat(review.rating)}${"☆".repeat(5 - review.rating)}</div>
+          <p>${escapeHTML(review.text)}</p>
+        </article>`).join("")}
+      </div>
+      ${visibleReviews.length < reviews.length
+        ? `<button class="button button--outline product-reviews__more" type="button" data-review-more>Показать ещё ${Math.min(6, reviews.length - visibleReviews.length)}</button>`
+        : ""}
+    </section>`;
+  }
+
+  function getPageUrl(file) {
+    return file === "index.html" ? seoConfig.siteUrl : new URL(file, seoConfig.siteUrl).href;
+  }
+
+  function setMetaContent(selector, attribute, key, content) {
+    let meta = document.head.querySelector(selector);
+    if (!meta) {
+      meta = document.createElement("meta");
+      meta.setAttribute(attribute, key);
+      document.head.append(meta);
+    }
+    meta.content = content;
+  }
+
+  function setJsonLd(id, data) {
+    let script = document.getElementById(id);
+    if (!script) {
+      script = document.createElement("script");
+      script.id = id;
+      script.type = "application/ld+json";
+      document.head.append(script);
+    }
+    script.textContent = JSON.stringify(data);
+  }
+
+  function configureAnalytics() {
+    const analytics = seoConfig.analytics || {};
+    const googleAnalyticsId = analytics.googleAnalyticsId?.trim();
+    const yandexMetricaId = analytics.yandexMetricaId?.trim();
+
+    if (googleAnalyticsId) {
+      if (!/^G-[A-Z0-9]+$/i.test(googleAnalyticsId)) {
+        console.error("Некорректный GA4 ID в js/seo-config.js.");
+      } else {
+        window.dataLayer = window.dataLayer || [];
+        window.gtag = function () {
+          window.dataLayer.push(arguments);
+        };
+        window.gtag("js", new Date());
+        window.gtag("config", googleAnalyticsId);
+        const script = document.createElement("script");
+        script.async = true;
+        script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(googleAnalyticsId)}`;
+        document.head.append(script);
+      }
+    }
+
+    if (yandexMetricaId) {
+      if (!/^\d+$/.test(yandexMetricaId)) {
+        console.error("Некорректный ID Яндекс Метрики в js/seo-config.js.");
+      } else {
+        window.ym = window.ym || function () {
+          (window.ym.a = window.ym.a || []).push(arguments);
+        };
+        window.ym.l = Date.now();
+        const script = document.createElement("script");
+        script.async = true;
+        script.src = "https://mc.yandex.ru/metrika/tag.js";
+        document.head.append(script);
+        window.ym(Number(yandexMetricaId), "init", {
+          clickmap: true,
+          trackLinks: true,
+          accurateTrackBounce: true,
+          webvisor: false
+        });
+      }
+    }
+  }
+
+  function buildBreadcrumbSchema(canonicalUrl) {
+    const breadcrumb = document.querySelector(".breadcrumb");
+    if (!breadcrumb) return null;
+    const items = [...breadcrumb.children]
+      .filter((item) => item.matches("a, [aria-current='page']"))
+      .map((item, index, list) => {
+        const href = item.matches("a")
+          ? item.getAttribute("href")
+          : canonicalUrl;
+        const itemUrl = href === "index.html" ? seoConfig.siteUrl : new URL(href, seoConfig.siteUrl).href;
+        return {
+          "@type": "ListItem",
+          position: index + 1,
+          name: item.textContent.trim(),
+          item: itemUrl
+        };
+      });
+    return items.length ? {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      itemListElement: items
+    } : null;
+  }
+
+  function buildProductSchema(product, canonicalUrl) {
+    const offers = getSizeOptions(product)
+      .filter((option) => Number.isFinite(option.price))
+      .map((option) => ({
+        "@type": "Offer",
+        priceCurrency: "RUB",
+        price: option.price,
+        url: canonicalUrl,
+        ...(getSizeOptions(product).length > 1 ? { name: option.name } : {})
+      }));
+    const schema = {
+      "@context": "https://schema.org",
+      "@type": "Product",
+      "@id": `${canonicalUrl}#product`,
+      name: product.variantLabel ? `${product.name} — ${product.variantLabel}` : product.name,
+      url: canonicalUrl,
+      image: (product.images || []).map((image) => new URL(image, seoConfig.siteUrl).href),
+      offers
+    };
+    if (product.description) schema.description = product.description;
+    if (product.material) schema.material = product.material;
+    if (product.category) schema.category = product.category;
+    return schema;
+  }
+
+  function updateSeo(product = null, productNotFound = false) {
+    const lastPathSegment = location.pathname.split("/").filter(Boolean).pop();
+    const pageFile = lastPathSegment?.endsWith(".html") ? lastPathSegment : "index.html";
+    const pageMetadata = seoConfig.pages[pageFile] || seoConfig.pages["index.html"];
+    const canonicalUrl = product
+      ? `${getPageUrl("product.html")}?id=${encodeURIComponent(product.id)}`
+      : getPageUrl(pageFile);
+    const productLabel = product?.variantLabel ? `${product.name} — ${product.variantLabel}` : product?.name;
+    const sizeOptions = product ? getSizeOptions(product) : [];
+    const sizeDescription = sizeOptions.length > 1
+      ? `Размеры: ${sizeOptions.map((option) => `${option.name} — ${formatPrice(option.price)}`).join(", ")}.`
+      : "";
+    const productDescription = product
+      ? product.description || [
+          productLabel,
+          product.material ? `Материал: ${product.material}.` : "",
+          sizeDescription,
+          `Цена: ${getPriceLabel(product)}.`,
+          "Фотографии и сведения о модели — в каталоге PALBAG."
+        ].filter(Boolean).join(" ")
+      : pageMetadata.description;
+    const title = product
+      ? `${productLabel} — PALBAG`
+      : productNotFound ? "Товар не найден — PALBAG" : pageMetadata.title;
+    const description = productNotFound
+      ? "Товар по этой ссылке не найден. Вернитесь в каталог PALBAG и выберите другую модель."
+      : productDescription || pageMetadata.description;
+    const imagePath = product?.images?.[0] || pageMetadata.image;
+    const imageUrl = new URL(imagePath, seoConfig.siteUrl).href;
+    const robots = productNotFound ? "noindex,follow" : pageMetadata.indexable
+      ? "index,follow,max-image-preview:large"
+      : "noindex,follow";
+
+    document.title = title;
+    const canonical = document.head.querySelector('link[rel="canonical"]');
+    if (canonical) canonical.href = canonicalUrl;
+    setMetaContent('meta[name="description"]', "name", "description", description);
+    setMetaContent('meta[name="robots"]', "name", "robots", robots);
+    setMetaContent('meta[property="og:type"]', "property", "og:type", product ? "product" : "website");
+    setMetaContent('meta[property="og:title"]', "property", "og:title", title);
+    setMetaContent('meta[property="og:description"]', "property", "og:description", description);
+    setMetaContent('meta[property="og:url"]', "property", "og:url", canonicalUrl);
+    setMetaContent('meta[property="og:image"]', "property", "og:image", imageUrl);
+    setMetaContent('meta[property="og:image:alt"]', "property", "og:image:alt", productLabel || title);
+    setMetaContent('meta[name="twitter:title"]', "name", "twitter:title", title);
+    setMetaContent('meta[name="twitter:description"]', "name", "twitter:description", description);
+    setMetaContent('meta[name="twitter:image"]', "name", "twitter:image", imageUrl);
+
+    if (page === "home") {
+      setJsonLd("palbag-organization-schema", {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "Organization",
+            "@id": `${seoConfig.siteUrl}#organization`,
+            name: "PALBAG",
+            url: seoConfig.siteUrl
+          },
+          {
+            "@type": "WebSite",
+            "@id": `${seoConfig.siteUrl}#website`,
+            name: "PALBAG",
+            url: seoConfig.siteUrl,
+            inLanguage: "ru-RU",
+            publisher: { "@id": `${seoConfig.siteUrl}#organization` }
+          }
+        ]
+      });
+    }
+
+    const breadcrumbSchema = buildBreadcrumbSchema(canonicalUrl);
+    if (breadcrumbSchema) setJsonLd("palbag-breadcrumb-schema", breadcrumbSchema);
+    if (product) setJsonLd("palbag-product-schema", buildProductSchema(product, canonicalUrl));
+  }
+
   function pluralRu(count, forms) {
     const lastTwo = Math.abs(count) % 100;
     const last = lastTwo % 10;
@@ -230,16 +542,33 @@
     });
   }
 
-  function productVisual(product, index = 0, alt = "") {
+  function responsiveImage(source, alt, options = {}) {
+    const avifSource = source.replace(/\.(?:jpe?g|png)$/i, ".avif");
+    const [width, height] = imageDimensionOverrides[source] || [768, 1024];
+    const pictureClass = options.pictureClass || "responsive-picture";
+    const imageClass = options.className ? ` class="${escapeHTML(options.className)}"` : "";
+    const fetchPriority = options.fetchPriority ? ` fetchpriority="${options.fetchPriority}"` : "";
+    const avifSourceMarkup = avifSource === source
+      ? ""
+      : `<source srcset="${escapeHTML(avifSource)}" type="image/avif">`;
+    return `<picture class="${escapeHTML(pictureClass)}">${avifSourceMarkup}<img${imageClass} src="${escapeHTML(source)}" alt="${escapeHTML(alt)}" width="${width}" height="${height}" loading="${options.loading || "lazy"}" decoding="async"${fetchPriority}></picture>`;
+  }
+
+  function productVisual(product, index = 0, alt = "", options = {}) {
     if (!Array.isArray(product.images) || !product.images.length) {
       return `<div class="product-photo-placeholder" role="img" aria-label="${escapeHTML(alt || product.name)}"><span>Фото товара пока не добавлено</span></div>`;
     }
     const source = product.images[Math.min(index, product.images.length - 1)];
-    return `<img class="product-photo" src="${escapeHTML(source)}" alt="${escapeHTML(alt)}" loading="${index === 0 ? "eager" : "lazy"}" decoding="async">`;
+    return responsiveImage(source, alt, {
+      ...options,
+      className: "product-photo",
+      pictureClass: "product-photo-picture"
+    });
   }
 
   function productCard(product) {
     const favorite = getFavorites().includes(product.id);
+    const hasCustomerRating = getReviewSummary(product.id).count > 0;
     const sizeOptions = getSizeOptions(product);
     const hasVariantPrices = new Set(sizeOptions.map((option) => option.price)).size > 1;
     const requiresSizeSelection = !product.hideSizeOption && sizeOptions.length > 1;
@@ -247,7 +576,7 @@
     const buyHref = requiresSizeSelection
       ? `product.html?id=${encodeURIComponent(product.id)}`
       : telegramUrl;
-    return `<article class="product-card">
+    return `<article class="product-card${hasCustomerRating ? " product-card--rated" : ""}">
       <div class="product-card__visual">
         <a class="product-card__image" href="product.html?id=${encodeURIComponent(product.id)}" aria-label="Открыть товар «${escapeHTML(productLabel)}»">
           ${productVisual(product, 0, productLabel)}
@@ -269,6 +598,7 @@
           <a class="product-card__name" href="product.html?id=${encodeURIComponent(product.id)}">${escapeHTML(product.name)}</a>
           ${product.swatches?.length ? `<div class="product-card__meta" aria-label="Доступные цвета">${product.swatches.map((color) => `<span class="swatch" style="--swatch:${color}" title="${colorNames[color] || "Цвет"}"></span>`).join("")}</div>` : ""}
         </div>
+        ${productRatingMarkup(product.id, "product-card__rating")}
         <span class="product-card__price">${getPriceLabel(product)}${product.oldPrice ? ` <span class="sale-price">${formatPrice(product.oldPrice)}</span>` : ""}</span>
         <div class="product-card__notes">
           ${product.variantLabel ? `<span class="product-card__note product-card__note--label">${escapeHTML(product.variantLabel)}</span>` : ""}
@@ -382,7 +712,7 @@
           </div>
         </div>
         <div class="menu-aside">
-          <div class="menu-aside__art"><img src="assets/moschino/moschino-tie-me-01-front.jpeg" alt="Moschino Tie Me Bag" loading="lazy" decoding="async"></div>
+          <div class="menu-aside__art">${responsiveImage("assets/moschino/moschino-tie-me-01-front.jpeg", "Moschino Tie Me Bag", { loading: "lazy" })}</div>
           <div class="menu-aside__copy">
             <span class="eyebrow">Вещи на каждый день</span>
             <p>Форма, которая остаётся актуальной.</p>
@@ -458,12 +788,12 @@
     const slidesMarkup = slides.map((slide, index) => `<article class="hero-slide hero-slide--photo ${index === 0 ? "is-active" : ""}" data-hero-slide="${index}" aria-hidden="${index !== 0}" style="background:${slide.backdrop}">
       <div class="hero-copy">
         <span class="eyebrow">${slide.eyebrow}</span>
-        <h1 class="display">${slide.title}</h1>
+        ${index === 0 ? `<h1 class="display">${slide.title}</h1>` : `<h2 class="display">${slide.title}</h2>`}
         <p class="lead">${slide.description}</p>
         <a class="button" href="${slide.link}">${slide.action}</a>
       </div>
       <div class="hero-art hero-art--photo" style="background:${slide.backdrop}">
-        <img src="${slide.image}" alt="${slide.imageAlt}" loading="eager" decoding="async">
+        ${responsiveImage(slide.image, slide.imageAlt, { loading: index === 0 ? "eager" : "lazy", fetchPriority: index === 0 ? "high" : "" })}
       </div>
     </article>`).join("");
     const progress = slides.map((slide, index) => `<button type="button" data-hero-go="${index}" aria-label="Баннер ${index + 1}" aria-current="${index === 0}"><span></span></button>`).join("");
@@ -499,12 +829,12 @@
           <a class="text-link" href="catalog.html">Все сумки ${icons.arrow}</a>
         </div>
         <div class="category-grid">${categoryTypes.map((category, index) => `<a class="category-card ${index === 1 || index === 4 ? "category-card--offset" : ""}" href="${category.href || (category.category ? `catalog.html?category=${encodeURIComponent(category.category)}` : "catalog.html")}">
-          ${category.image ? `<img class="category-card__image" src="${category.image}" alt="${category.imageAlt}" loading="lazy" decoding="async">` : `<span class="category-card__image category-card__image--placeholder">Фото этой категории скоро появится</span>`}
+          ${category.image ? responsiveImage(category.image, category.imageAlt, { className: "category-card__image" }) : `<span class="category-card__image category-card__image--placeholder">Фото этой категории скоро появится</span>`}
           <span class="category-card__label"><span>${category.title}</span><span>${String(index + 1).padStart(2, "0")}</span></span>
         </a>`).join("")}</div>
       </section>
       <section class="brand-editorial brand-editorial--home wrap reveal">
-        <div class="brand-editorial__media"><img src="assets/balenciaga/lookbook-carry-all-01.jpg" alt="Модель с сумкой BALENCIAGA Bel Air Carry All Bag" loading="lazy"></div>
+        <div class="brand-editorial__media">${responsiveImage("assets/balenciaga/lookbook-carry-all-01.jpg", "Модель с сумкой BALENCIAGA Bel Air Carry All Bag")}</div>
         <div class="brand-editorial__copy">
           <span class="eyebrow">Дизайнерские марки · BALENCIAGA</span>
           <h2 class="section-title">BALENCIAGA</h2>
@@ -513,7 +843,7 @@
         </div>
       </section>
       <section class="brand-editorial brand-editorial--home wrap reveal">
-        <div class="brand-editorial__media"><img src="assets/chanel/chanel-maxi-flap-01-front.jpeg" alt="Chanel Maxi Flap Bag" loading="lazy"></div>
+        <div class="brand-editorial__media">${responsiveImage("assets/chanel/chanel-maxi-flap-01-front.jpeg", "Chanel Maxi Flap Bag")}</div>
         <div class="brand-editorial__copy">
           <span class="eyebrow">Дизайнерские марки · CHANEL</span>
           <h2 class="section-title">CHANEL</h2>
@@ -522,7 +852,7 @@
         </div>
       </section>
       <section class="brand-editorial brand-editorial--home wrap reveal">
-        <div class="brand-editorial__media"><img src="assets/moschino/moschino-tie-me-01-front.jpeg" alt="Moschino Tie Me Bag" loading="lazy"></div>
+        <div class="brand-editorial__media">${responsiveImage("assets/moschino/moschino-tie-me-01-front.jpeg", "Moschino Tie Me Bag")}</div>
         <div class="brand-editorial__copy">
           <span class="eyebrow">Дизайнерские марки · MOSCHINO</span>
           <h2 class="section-title">MOSCHINO</h2>
@@ -538,7 +868,7 @@
         <div class="product-grid">${photographedProducts.slice(0, 4).map(productCard).join("")}</div>
       </section>
       <section class="editorial-band reveal">
-        <div class="editorial-band__art"><img src="assets/balenciaga/bel-air-04-detail.jpeg" alt="Деталь кожи и фурнитуры BALENCIAGA Bel Air Carry All Bag" loading="lazy" decoding="async"></div>
+        <div class="editorial-band__art">${responsiveImage("assets/balenciaga/bel-air-04-detail.jpeg", "Деталь кожи и фурнитуры BALENCIAGA Bel Air Carry All Bag")}</div>
         <div class="editorial-band__copy">
           <span class="eyebrow">Editorial · Материал</span>
           <h2 class="section-title">Кожа, которая красиво стареет</h2>
@@ -564,14 +894,6 @@
         <div class="home-promise">${icons.lock}<h3>Безопасная оплата</h3><p>Картой, через СБП или при получении.</p></div>
         <div class="home-promise">${icons.gift}<h3>Фирменная упаковка</h3><p>Коробка и пыльник в комплекте.</p></div>
       </section>
-      <section class="home-section wrap reveal">
-        <div class="section-head"><div class="section-head__copy"><span class="eyebrow">Отзывы</span><h2 class="section-title">Говорят покупатели</h2></div></div>
-        <div class="reviews-grid">
-          <article class="quote-card"><span class="quote-stars" aria-label="Оценка 5 из 5">★★★★★</span><blockquote>«Качество чувствуется в каждой детали. Сумка выглядит сдержанно и дорого»</blockquote><cite>Анна</cite></article>
-          <article class="quote-card"><span class="quote-stars" aria-label="Оценка 5 из 5">★★★★★</span><blockquote>«Очень приятная упаковка и быстрая доставка. Ношу каждый день»</blockquote><cite>Мария</cite></article>
-          <article class="quote-card"><span class="quote-stars" aria-label="Оценка 5 из 5">★★★★★</span><blockquote>«Наконец нашла идеальный размер — всё нужное помещается»</blockquote><cite>Елена</cite></article>
-        </div>
-      </section>
       <section class="newsletter-section reveal">
         <div class="newsletter">
           <span class="eyebrow">Подписка</span>
@@ -591,12 +913,12 @@
           <div class="home-social__links"><a class="text-link" href="${telegramUrl}">Telegram</a><a class="text-link" href="https://vk.com/">VK</a></div>
         </div>
         <div class="social-grid" aria-label="Коллекция PalBag">
-          <img src="assets/balenciaga/lookbook-carry-all-01.jpg" alt="BALENCIAGA Bel Air Carry All Bag" loading="lazy" decoding="async">
-          <img src="assets/balenciaga/le-city-02.jpeg" alt="BALENCIAGA Le City" loading="lazy" decoding="async">
-          <img src="assets/chanel/chanel-maxi-flap-02-back.jpeg" alt="Chanel Maxi Flap Bag" loading="lazy" decoding="async">
-          <img src="assets/moschino/moschino-tie-me-02-side.jpeg" alt="Moschino Tie Me Bag" loading="lazy" decoding="async">
-          <img src="assets/saint-laurent/ysl-soft-niki-02.jpeg" alt="YSL Soft Niki Medium in Lambskin" loading="lazy" decoding="async">
-          <img src="assets/balenciaga/rodeo-02.jpeg" alt="Balenciaga Rodeo" loading="lazy" decoding="async">
+          ${responsiveImage("assets/balenciaga/lookbook-carry-all-01.jpg", "BALENCIAGA Bel Air Carry All Bag")}
+          ${responsiveImage("assets/balenciaga/le-city-02.jpeg", "BALENCIAGA Le City")}
+          ${responsiveImage("assets/chanel/chanel-maxi-flap-02-back.jpeg", "Chanel Maxi Flap Bag")}
+          ${responsiveImage("assets/moschino/moschino-tie-me-02-side.jpeg", "Moschino Tie Me Bag")}
+          ${responsiveImage("assets/saint-laurent/ysl-soft-niki-02.jpeg", "YSL Soft Niki Medium in Lambskin")}
+          ${responsiveImage("assets/balenciaga/rodeo-02.jpeg", "Balenciaga Rodeo")}
         </div>
       </section>`;
   }
@@ -691,22 +1013,22 @@
           </div>
           <div class="catalog-products">${sorted.length ? sorted.map(productCard).join("") : `<div class="empty-state"><h2>Ничего не найдено</h2><p>Попробуйте изменить запрос или сбросить фильтры.</p><button class="button button--outline button--small" type="button" data-filter-reset>Сбросить фильтры</button></div>`}</div>
           <div class="brand-catalog-promo">
-            <img src="assets/balenciaga/lookbook-carry-all-02.jpg" alt="" loading="lazy">
+            ${responsiveImage("assets/balenciaga/lookbook-carry-all-02.jpg", "BALENCIAGA Bel Air Carry All Bag")}
             <div><span class="eyebrow">BALENCIAGA</span><p>Откройте отдельную коллекцию бренда.</p></div>
             <a class="text-link" href="balenciaga.html">Перейти в BALENCIAGA ${icons.arrow}</a>
           </div>
           <div class="brand-catalog-promo">
-            <img src="assets/chanel/chanel-maxi-flap-01-front.jpeg" alt="" loading="lazy">
+            ${responsiveImage("assets/chanel/chanel-maxi-flap-01-front.jpeg", "Chanel Maxi Flap Bag")}
             <div><span class="eyebrow">CHANEL</span><p>Откройте отдельную коллекцию бренда.</p></div>
             <a class="text-link" href="chanel.html">Перейти в CHANEL ${icons.arrow}</a>
           </div>
           <div class="brand-catalog-promo">
-            <img src="assets/moschino/moschino-tie-me-01-front.jpeg" alt="" loading="lazy">
+            ${responsiveImage("assets/moschino/moschino-tie-me-01-front.jpeg", "Moschino Tie Me Bag")}
             <div><span class="eyebrow">MOSCHINO</span><p>Откройте отдельную коллекцию бренда.</p></div>
             <a class="text-link" href="moschino.html">Перейти в MOSCHINO ${icons.arrow}</a>
           </div>
           <div class="brand-catalog-promo">
-            <img src="assets/saint-laurent/ysl-soft-niki-01.jpeg" alt="" loading="lazy">
+            ${responsiveImage("assets/saint-laurent/ysl-soft-niki-01.jpeg", "YSL Soft Niki Medium in Lambskin")}
             <div><span class="eyebrow">SAINT LAURENT</span><p>Откройте отдельную коллекцию бренда.</p></div>
             <a class="text-link" href="saint-laurent.html">Перейти в SAINT LAURENT ${icons.arrow}</a>
           </div>
@@ -732,8 +1054,8 @@
       return `<div class="product-gallery" aria-label="Фото и видео товара">
         <div class="product-gallery__main">
           <div class="product-gallery__video-frame">
-            <img class="product-gallery__video-fallback" src="${escapeHTML(fallbackImage)}" alt="${escapeHTML(product.name)}" decoding="async">
-            <video class="product-gallery__video-player" data-product-video-player data-video-src="${escapeHTML(product.videoUrl)}" muted loop playsinline preload="none" poster="${escapeHTML(fallbackImage)}" aria-label="${escapeHTML(product.name)} — видео"></video>
+            ${responsiveImage(fallbackImage, product.name, { className: "product-gallery__video-fallback", pictureClass: "product-gallery__video-fallback-picture", loading: "eager", fetchPriority: "high" })}
+            <video class="product-gallery__video-player" data-product-video-player data-video-src="${escapeHTML(product.videoUrl)}" muted loop playsinline preload="none" aria-label="${escapeHTML(product.name)} — видео"></video>
           </div>
           <span class="product-gallery__count">1 / ${product.images.length + 1}</span>
         </div>
@@ -743,12 +1065,12 @@
     if (Array.isArray(product.images) && product.images.length) {
       return `<div class="product-gallery" aria-label="Изображения товара">
         <div class="product-gallery__main">
-          ${productVisual(product, 0, `${product.name} — вид спереди`)}
+          ${productVisual(product, 0, `${product.name} — фото 1`, { loading: "eager", fetchPriority: "high" })}
           ${product.badge ? `<span class="product-gallery__badge">${escapeHTML(product.badge)}</span>` : ""}
           <button class="product-gallery__zoom" type="button" data-gallery-zoom aria-label="Увеличить изображение">${icons.search}</button>
           <span class="product-gallery__count">1 / ${product.images.length}</span>
         </div>
-        ${product.images.slice(1).map((image, index) => `<div class="product-gallery__tile">${productVisual(product, index + 1, `${product.name} — вид ${index + 2}`)}</div>`).join("")}
+        ${product.images.slice(1).map((image, index) => `<div class="product-gallery__tile">${productVisual(product, index + 1, `${product.name} — фото ${index + 2}`)}</div>`).join("")}
       </div>`;
     }
     return `<div class="product-gallery" aria-label="Изображения товара">
@@ -760,6 +1082,9 @@
   }
 
   function productMarkup(product) {
+    if (state.reviews.productId !== product.id) {
+      state.reviews = { productId: product.id, sort: "date-desc", visible: 6 };
+    }
     const color = state.selectedColor || product.color || "";
     const size = state.selectedSize || getDefaultSize(product);
     const price = getProductPrice(product, size);
@@ -803,8 +1128,8 @@
         ${productGalleryMarkup(product)}
         <section class="product-info">
           <span class="eyebrow">${product.brand ? escapeHTML(product.brand) : ""}${categoryLabel ? `${product.brand ? " · " : ""}${escapeHTML(categoryLabel)}` : ""}${product.variantLabel ? ` · ${escapeHTML(product.variantLabel)}` : ""}</span>
-          <h1>${escapeHTML(product.name)}</h1>
-          ${product.showDemoRating === false ? "" : `<div class="product-rating"><span class="product-rating__stars">★★★★★</span><span>4,9 · 18 отзывов</span></div>`}
+          <h1>${escapeHTML(product.name)}${product.variantLabel ? ` — ${escapeHTML(product.variantLabel)}` : ""}</h1>
+          ${productRatingMarkup(product.id)}
           <div class="product-detail__price"><strong>${formatPrice(price)}</strong>${product.oldPrice ? `<del>${formatPrice(product.oldPrice)}</del>` : ""}</div>
           ${product.description ? `<p class="product-description">${escapeHTML(product.description)}</p>` : ""}
           ${colorOptions.length ? `<div class="product-option">
@@ -840,7 +1165,7 @@
       ${descriptionMarkup}
       <div><h2 class="section-title">Характеристики</h2><dl>${specifications.filter(([, value]) => value).map(([label, value]) => `<div><dt>${escapeHTML(label)}</dt><dd>${escapeHTML(value)}</dd></div>`).join("")}</dl></div>
     </section>
-    ${product.showDemoReviews === false ? "" : `<section class="home-section wrap reveal"><div class="section-head"><h2 class="section-title">Отзывы</h2><a class="text-link" href="#product-specifications">Написать отзыв ${icons.arrow}</a></div><div class="reviews-grid"><article class="quote-card"><span class="quote-stars">★★★★★</span><blockquote>«Сумка выглядит ещё лучше, чем на фото. Кожа мягкая, фурнитура аккуратная»</blockquote><cite>Ольга · покупательница PalBag</cite></article><article class="quote-card"><span class="quote-stars">★★★★★</span><blockquote>«Очень удобный размер и продуманная организация внутри»</blockquote><cite>Мария · покупательница PalBag</cite></article></div></section>`}
+    ${productReviewsMarkup(product.id)}
     <section class="section wrap reveal"><div class="section-head"><div class="section-head__copy"><span class="eyebrow">В том же настроении</span><h2 class="section-title">Похожие модели</h2></div></div><div class="product-grid">${relatedProducts.map(productCard).join("")}</div></section>
     <div class="mobile-buybar"><span class="mobile-buybar__price"><strong>${formatPrice(price)}</strong><span class="muted">${escapeHTML(product.name)}${product.variantLabel ? ` · ${escapeHTML(product.variantLabel)}` : ""}</span></span>${telegramBuyLink("button mobile-buybar__buy")}</div>`;
   }
@@ -865,7 +1190,7 @@
     return `<div class="wrap">
       <nav class="breadcrumb" aria-label="Хлебные крошки"><a href="index.html">Главная</a><span aria-hidden="true">/</span><a href="catalog.html">Каталог</a><span aria-hidden="true">/</span><span aria-current="page">${escapeHTML(brand)}</span></nav>
       <section class="brand-editorial brand-category-hero reveal">
-        <div class="brand-editorial__media">${featuredProduct?.campaignImage ? `<img src="${escapeHTML(featuredProduct.campaignImage)}" alt="${escapeHTML(featuredProduct.name)}">` : ""}</div>
+        <div class="brand-editorial__media">${featuredProduct?.campaignImage ? responsiveImage(featuredProduct.campaignImage, featuredProduct.name, { loading: "eager", fetchPriority: "high" }) : ""}</div>
         <div class="brand-editorial__copy">
           <span class="eyebrow">Дизайнерская коллекция</span>
           <h1 class="page-title">${escapeHTML(brand)}</h1>
@@ -952,7 +1277,7 @@
     return `<div class="wrap"><nav class="breadcrumb" aria-label="Хлебные крошки"><a href="index.html">Главная</a><span aria-hidden="true">/</span><span aria-current="page">О бренде</span></nav>
       <section class="editorial-hero reveal">
         <div class="editorial-hero__copy"><span class="eyebrow">История PalBag</span><h1>Сумки без лишнего</h1><p>Мы создаём вещи, которым не нужно громко заявлять о себе. Достаточно хорошей формы, честного материала и внимания к деталям.</p></div>
-        <div class="editorial-hero__art"><img src="assets/balenciaga/lookbook-carry-all-02.jpg" alt="BALENCIAGA Bel Air Carry All Bag" loading="lazy" decoding="async"></div>
+        <div class="editorial-hero__art">${responsiveImage("assets/balenciaga/lookbook-carry-all-02.jpg", "BALENCIAGA Bel Air Carry All Bag", { loading: "eager", fetchPriority: "high" })}</div>
       </section>
       <section class="section reveal"><div class="wrap editorial-statement"><span class="eyebrow">Наша идея</span><p>Мы делаем вещи, которые остаются. В гардеробе, в памяти, в повседневной жизни.</p></div></section>
       <section class="section--compact wrap reveal"><span class="eyebrow">Во всём есть смысл</span><h2 class="section-title" style="margin-top:12px">Наши принципы</h2>
@@ -962,7 +1287,7 @@
           <article class="principle"><h3>Забота</h3><p>Продумываем посадку, вес и каждую мелочь внутри. Чтобы красивой сумкой было удобно пользоваться.</p></article>
         </div>
       </section>
-      <section class="section wrap reveal"><div class="story-band"><div class="story-band__art"><img src="assets/saint-laurent/ysl-soft-niki-01.jpeg" alt="YSL Soft Niki Medium in Lambskin" loading="lazy" decoding="async"></div><div class="story-band__copy"><span class="eyebrow">Создано на каждый день</span><h2 class="section-title">Познакомьтесь с коллекцией</h2><p class="lead">Найдите форму, которая подходит именно вам.</p><a class="button" href="catalog.html">Открыть каталог ${icons.arrow}</a></div></div></section>
+      <section class="section wrap reveal"><div class="story-band"><div class="story-band__art">${responsiveImage("assets/saint-laurent/ysl-soft-niki-01.jpeg", "YSL Soft Niki Medium in Lambskin")}</div><div class="story-band__copy"><span class="eyebrow">Создано на каждый день</span><h2 class="section-title">Познакомьтесь с коллекцией</h2><p class="lead">Найдите форму, которая подходит именно вам.</p><a class="button" href="catalog.html">Открыть каталог ${icons.arrow}</a></div></div></section>
     </div>`;
   }
 
@@ -1104,6 +1429,8 @@
     document.getElementById("site-header").innerHTML = headerMarkup();
     document.getElementById("site-footer").innerHTML = footerMarkup();
     const main = document.getElementById("main-content");
+    let productForSeo = null;
+    let productNotFound = false;
     if (page === "home") {
       main.innerHTML = homeMarkup();
       initHero();
@@ -1118,9 +1445,11 @@
       const id = new URLSearchParams(location.search).get("id");
       const product = productMap.get(id);
       if (product) {
+        productForSeo = product;
         document.title = `${product.name} — PalBag`;
         main.innerHTML = productMarkup(product);
       } else {
+        productNotFound = true;
         document.title = "Товар не найден — PalBag";
         main.innerHTML = productNotFoundMarkup();
       }
@@ -1141,6 +1470,7 @@
       main.innerHTML = contactsMarkup();
       document.getElementById("overlay-root").innerHTML = "";
     }
+    updateSeo(productForSeo, productNotFound);
     if (page === "product") observeProductVideos();
     updateHeaderCounts();
     observeReveals();
@@ -1357,6 +1687,11 @@
   document.addEventListener("click", (event) => {
     const target = event.target instanceof Element ? event.target : null;
     if (!target) return;
+    if (target.closest("[data-review-more]")) {
+      state.reviews.visible += 6;
+      render();
+      return;
+    }
     const menuToggle = target.closest("[data-menu-toggle]");
     if (menuToggle) return toggleMenu();
     if (target.closest("[data-menu-close]")) return toggleMenu(false);
@@ -1494,6 +1829,10 @@
     } else if (target.matches("[data-sort]")) {
       state.catalog.sort = target.value;
       render();
+    } else if (target.matches("[data-review-sort]")) {
+      state.reviews.sort = target.value;
+      state.reviews.visible = 6;
+      render();
     }
   });
 
@@ -1527,5 +1866,6 @@
     }
   });
 
+  configureAnalytics();
   render();
 })();

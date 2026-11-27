@@ -30,8 +30,7 @@
       min: "",
       max: "",
       search: new URLSearchParams(location.search).get("search") || "",
-      sort: new URLSearchParams(location.search).get("sort") || "popular",
-      columns: 3
+      sort: new URLSearchParams(location.search).get("sort") || "popular"
     },
     drawerOpen: false,
     selectedColor: null,
@@ -174,27 +173,30 @@
   }
 
   function getCart() {
-    return readStorage("palbag-cart", [], (value) => Array.isArray(value))
-      .filter((entry) => entry && productMap.has(entry.id) && Number.isInteger(entry.quantity) && entry.quantity > 0)
-      .map((entry) => {
-        const product = productMap.get(entry.id);
-        const size = getSizeOptions(product).some((option) => option.name === entry.size)
-          ? entry.size
-          : getDefaultSize(product);
-        return {
-          id: entry.id,
-          quantity: entry.quantity,
-          color: typeof entry.color === "string" && entry.color.startsWith("#")
-            ? entry.color
-            : product.color || "",
-          size
-        };
-      });
+    const storedCart = readStorage("palbag-cart", [], (value) => Array.isArray(value));
+    const validCart = storedCart.filter((entry) => entry && productMap.has(entry.id) && Number.isInteger(entry.quantity) && entry.quantity > 0);
+    if (validCart.length !== storedCart.length) writeStorage("palbag-cart", validCart);
+    return validCart.map((entry) => {
+      const product = productMap.get(entry.id);
+      const size = getSizeOptions(product).some((option) => option.name === entry.size)
+        ? entry.size
+        : getDefaultSize(product);
+      return {
+        id: entry.id,
+        quantity: entry.quantity,
+        color: typeof entry.color === "string" && entry.color.startsWith("#")
+          ? entry.color
+          : product.color || "",
+        size
+      };
+    });
   }
 
   function getFavorites() {
-    return readStorage("palbag-favorites", [], (value) => Array.isArray(value))
-      .filter((id) => productMap.has(id));
+    const storedFavorites = readStorage("palbag-favorites", [], (value) => Array.isArray(value));
+    const validFavorites = storedFavorites.filter((id) => productMap.has(id));
+    if (validFavorites.length !== storedFavorites.length) writeStorage("palbag-favorites", validFavorites);
+    return validFavorites;
   }
 
   function setCart(cart) {
@@ -228,15 +230,9 @@
     });
   }
 
-  function bagArt(type, color, background, extraClass) {
-    return `<div class="bag-scene ${extraClass || ""}" style="--bag-color:${escapeHTML(color)};--bag-bg:${escapeHTML(background)}" aria-hidden="true">
-      <svg class="bag-art" viewBox="0 0 420 520" focusable="false"><use href="assets/bags.svg#${escapeHTML(type)}"></use></svg>
-    </div>`;
-  }
-
   function productVisual(product, index = 0, alt = "") {
     if (!Array.isArray(product.images) || !product.images.length) {
-      return bagArt(product.type, product.color, product.background);
+      return `<div class="product-photo-placeholder" role="img" aria-label="${escapeHTML(alt || product.name)}"><span>Фото товара пока не добавлено</span></div>`;
     }
     const source = product.images[Math.min(index, product.images.length - 1)];
     return `<img class="product-photo" src="${escapeHTML(source)}" alt="${escapeHTML(alt)}" loading="${index === 0 ? "eager" : "lazy"}" decoding="async">`;
@@ -255,7 +251,7 @@
       <div class="product-card__visual">
         <a class="product-card__image" href="product.html?id=${encodeURIComponent(product.id)}" aria-label="Открыть товар «${escapeHTML(productLabel)}»">
           ${productVisual(product, 0, productLabel)}
-          <span class="product-card__alternate">${product.images?.length > 1 ? productVisual(product, 1, `${productLabel} — дополнительный вид`) : bagArt(product.type, product.color, "#e4ddd2")}</span>
+          ${product.images?.length > 1 ? `<span class="product-card__alternate">${productVisual(product, 1, `${productLabel} — дополнительный вид`)}</span>` : ""}
         </a>
         ${product.badge ? `<span class="product-card__badge">${escapeHTML(product.badge)}</span>` : ""}
         <button class="icon-button product-card__favorite ${favorite ? "is-active" : ""}" type="button" data-favorite-toggle="${product.id}" aria-label="${favorite ? "Убрать из" : "Добавить в"} избранное" aria-pressed="${favorite}">
@@ -274,8 +270,10 @@
           ${product.swatches?.length ? `<div class="product-card__meta" aria-label="Доступные цвета">${product.swatches.map((color) => `<span class="swatch" style="--swatch:${color}" title="${colorNames[color] || "Цвет"}"></span>`).join("")}</div>` : ""}
         </div>
         <span class="product-card__price">${getPriceLabel(product)}${product.oldPrice ? ` <span class="sale-price">${formatPrice(product.oldPrice)}</span>` : ""}</span>
-        ${product.variantLabel ? `<span class="product-card__note">${escapeHTML(product.variantLabel)}</span>` : ""}
-        ${hasVariantPrices ? `<span class="product-card__note">${sizeOptions.map((option) => `${escapeHTML(option.name)} — ${formatPrice(option.price)}`).join(" · ")}</span>` : ""}
+        <div class="product-card__notes">
+          ${product.variantLabel ? `<span class="product-card__note product-card__note--label">${escapeHTML(product.variantLabel)}</span>` : ""}
+          ${hasVariantPrices ? `<span class="product-card__note">${sizeOptions.map((option) => `${escapeHTML(option.name)} — ${formatPrice(option.price)}`).join(" · ")}</span>` : ""}
+        </div>
       </div>
       <a class="button button--small product-card__buy" href="${buyHref}" ${requiresSizeSelection ? "" : `target="_blank" rel="noopener noreferrer"`} aria-label="${requiresSizeSelection ? `Выбрать размер и купить «${escapeHTML(productLabel)}»` : `Купить «${escapeHTML(productLabel)}» в Telegram`}">Купить</a>
     </article>`;
@@ -384,7 +382,7 @@
           </div>
         </div>
         <div class="menu-aside">
-          <div class="menu-aside__art">${bagArt("shoulder", "#8a5a3c", "#e9e3da")}</div>
+          <div class="menu-aside__art"><img src="assets/moschino/moschino-tie-me-01-front.jpeg" alt="Moschino Tie Me Bag" loading="lazy" decoding="async"></div>
           <div class="menu-aside__copy">
             <span class="eyebrow">Вещи на каждый день</span>
             <p>Форма, которая остаётся актуальной.</p>
@@ -406,7 +404,7 @@
           <a href="catalog.html">Все сумки</a>
           <a href="catalog.html?sort=new">Новинки</a>
           <a href="catalog.html?sort=popular">Бестселлеры</a>
-          <a href="catalog.html?category=кросс-боди">Кросс-боди</a>
+          <a href="catalog.html?category=на%20плечо">Сумки на плечо</a>
           <a href="catalog.html?category=тоуты">Тоуты</a>
           <a href="balenciaga.html">BALENCIAGA</a>
           <a href="chanel.html">CHANEL</a>
@@ -485,13 +483,14 @@
   }
 
   function homeMarkup() {
+    const photographedProducts = products.filter((product) => Array.isArray(product.images) && product.images.length);
     const categoryTypes = [
-      { title: "Женские сумки", category: "", type: "tote", color: "#1c1b1a", background: "#e9e3da" },
-      { title: "Кросс-боди", category: "кросс-боди", type: "cross", color: "#8a5a3c", background: "#dcd3c6" },
-      { title: "Сумки на плечо", category: "на плечо", type: "shoulder", color: "#6d6a58", background: "#e4e3dc" },
-      { title: "Тоуты", category: "тоуты", type: "tote", color: "#d2c7b6", background: "#ece7e0" },
-      { title: "Мини-сумки", category: "мини-сумки", type: "mini", color: "#5a2a2e", background: "#e2d6d0" },
-      { title: "Новинки", category: "", type: "cross", color: "#1c1b1a", background: "#d8d9d3" }
+      { title: "Женские сумки", category: "", image: "assets/chanel/chanel-maxi-flap-01-front.jpeg", imageAlt: "Chanel Maxi Flap Bag" },
+      { title: "BALENCIAGA", href: "balenciaga.html", image: "assets/balenciaga/le-city-01.jpeg", imageAlt: "BALENCIAGA Le City" },
+      { title: "Сумки на плечо", category: "на плечо", image: "assets/saint-laurent/ysl-soft-niki-01.jpeg", imageAlt: "YSL Soft Niki Medium in Lambskin" },
+      { title: "Тоуты", category: "тоуты", image: "assets/balenciaga/bel-air-01-front.jpeg", imageAlt: "BALENCIAGA Bel Air Carry All Bag" },
+      { title: "CHANEL", href: "chanel.html", image: "assets/chanel/chanel-maxi-flap-01-front.jpeg", imageAlt: "Chanel Maxi Flap Bag" },
+      { title: "SAINT LAURENT", href: "saint-laurent.html", image: "assets/saint-laurent/ysl-soft-niki-01.jpeg", imageAlt: "YSL Soft Niki Medium in Lambskin" }
     ];
     return `${heroMarkup()}
       <section class="home-section wrap reveal">
@@ -499,8 +498,8 @@
           <div class="section-head__copy"><span class="eyebrow">Каталог</span><h2 class="section-title">Популярные категории</h2></div>
           <a class="text-link" href="catalog.html">Все сумки ${icons.arrow}</a>
         </div>
-        <div class="category-grid">${categoryTypes.map((category, index) => `<a class="category-card ${index === 1 || index === 4 ? "category-card--offset" : ""}" href="${category.title === "Новинки" ? "catalog.html?sort=new" : category.category ? `catalog.html?category=${encodeURIComponent(category.category)}` : "catalog.html"}">
-          ${bagArt(category.type, category.color, category.background)}
+        <div class="category-grid">${categoryTypes.map((category, index) => `<a class="category-card ${index === 1 || index === 4 ? "category-card--offset" : ""}" href="${category.href || (category.category ? `catalog.html?category=${encodeURIComponent(category.category)}` : "catalog.html")}">
+          ${category.image ? `<img class="category-card__image" src="${category.image}" alt="${category.imageAlt}" loading="lazy" decoding="async">` : `<span class="category-card__image category-card__image--placeholder">Фото этой категории скоро появится</span>`}
           <span class="category-card__label"><span>${category.title}</span><span>${String(index + 1).padStart(2, "0")}</span></span>
         </a>`).join("")}</div>
       </section>
@@ -536,10 +535,10 @@
           <div class="section-head__copy"><span class="eyebrow">Выбор покупателей</span><h2 class="section-title">Бестселлеры PalBag</h2></div>
           <a class="text-link" href="catalog.html">Смотреть все ${icons.arrow}</a>
         </div>
-        <div class="product-grid">${products.slice(0, 4).map(productCard).join("")}</div>
+        <div class="product-grid">${photographedProducts.slice(0, 4).map(productCard).join("")}</div>
       </section>
       <section class="editorial-band reveal">
-        <div class="editorial-band__art">${bagArt("cross", "#8a5a3c", "#dcd2c4")}</div>
+        <div class="editorial-band__art"><img src="assets/balenciaga/bel-air-04-detail.jpeg" alt="Деталь кожи и фурнитуры BALENCIAGA Bel Air Carry All Bag" loading="lazy" decoding="async"></div>
         <div class="editorial-band__copy">
           <span class="eyebrow">Editorial · Материал</span>
           <h2 class="section-title">Кожа, которая красиво стареет</h2>
@@ -552,7 +551,7 @@
           <div class="section-head__copy"><span class="eyebrow">Зима 2026</span><h2 class="section-title">Новинки</h2></div>
           <a class="text-link" href="catalog.html?sort=new">Смотреть все ${icons.arrow}</a>
         </div>
-        <div class="product-grid">${products.slice(4).map(productCard).join("")}</div>
+        <div class="product-grid">${photographedProducts.slice(4).map(productCard).join("")}</div>
       </section>
       <section class="home-statement reveal">
         <span class="eyebrow">О PalBag</span>
@@ -568,9 +567,9 @@
       <section class="home-section wrap reveal">
         <div class="section-head"><div class="section-head__copy"><span class="eyebrow">Отзывы</span><h2 class="section-title">Говорят покупатели</h2></div></div>
         <div class="reviews-grid">
-          <article class="quote-card"><span class="quote-stars" aria-label="Оценка 5 из 5">★★★★★</span><blockquote>«Качество чувствуется в каждой детали. Сумка выглядит сдержанно и дорого»</blockquote><cite>Анна · Тоут Lune</cite></article>
-          <article class="quote-card"><span class="quote-stars" aria-label="Оценка 5 из 5">★★★★★</span><blockquote>«Очень приятная упаковка и быстрая доставка. Ношу каждый день»</blockquote><cite>Мария · Кросс-боди Aria</cite></article>
-          <article class="quote-card"><span class="quote-stars" aria-label="Оценка 5 из 5">★★★★★</span><blockquote>«Наконец нашла идеальный размер — всё нужное помещается»</blockquote><cite>Елена · Мини Nota</cite></article>
+          <article class="quote-card"><span class="quote-stars" aria-label="Оценка 5 из 5">★★★★★</span><blockquote>«Качество чувствуется в каждой детали. Сумка выглядит сдержанно и дорого»</blockquote><cite>Анна</cite></article>
+          <article class="quote-card"><span class="quote-stars" aria-label="Оценка 5 из 5">★★★★★</span><blockquote>«Очень приятная упаковка и быстрая доставка. Ношу каждый день»</blockquote><cite>Мария</cite></article>
+          <article class="quote-card"><span class="quote-stars" aria-label="Оценка 5 из 5">★★★★★</span><blockquote>«Наконец нашла идеальный размер — всё нужное помещается»</blockquote><cite>Елена</cite></article>
         </div>
       </section>
       <section class="newsletter-section reveal">
@@ -592,10 +591,12 @@
           <div class="home-social__links"><a class="text-link" href="${telegramUrl}">Telegram</a><a class="text-link" href="https://vk.com/">VK</a></div>
         </div>
         <div class="social-grid" aria-label="Коллекция PalBag">
-          ${[
-            ["tote", "#1c1b1a", "#e9e3da"], ["mini", "#8a5a3c", "#ddd4c8"], ["cross", "#5a2a2e", "#e4d9d3"],
-            ["shoulder", "#6d6a58", "#e2e2da"], ["tote", "#d2c7b6", "#ede8e1"], ["cross", "#1c1b1a", "#d8d9d3"]
-          ].map(([type, color, background]) => bagArt(type, color, background)).join("")}
+          <img src="assets/balenciaga/lookbook-carry-all-01.jpg" alt="BALENCIAGA Bel Air Carry All Bag" loading="lazy" decoding="async">
+          <img src="assets/balenciaga/le-city-02.jpeg" alt="BALENCIAGA Le City" loading="lazy" decoding="async">
+          <img src="assets/chanel/chanel-maxi-flap-02-back.jpeg" alt="Chanel Maxi Flap Bag" loading="lazy" decoding="async">
+          <img src="assets/moschino/moschino-tie-me-02-side.jpeg" alt="Moschino Tie Me Bag" loading="lazy" decoding="async">
+          <img src="assets/saint-laurent/ysl-soft-niki-02.jpeg" alt="YSL Soft Niki Medium in Lambskin" loading="lazy" decoding="async">
+          <img src="assets/balenciaga/rodeo-02.jpeg" alt="Balenciaga Rodeo" loading="lazy" decoding="async">
         </div>
       </section>`;
   }
@@ -604,22 +605,28 @@
     const selectedCategories = state.catalog.categories;
     const selectedBrands = state.catalog.brands;
     const selectedColors = state.catalog.colors;
+    const availableCategories = Object.entries(categoryNames).filter(([category]) =>
+      products.some((product) => product.category === category)
+    );
+    const availableColors = Object.entries(colorNames).filter(([color]) =>
+      products.some((product) => product.swatches?.includes(color))
+    );
     return `<div class="filter-groups">
       ${brands.length ? `<details class="filter-group" open>
         <summary>Бренд</summary>
         <div class="filter-options">${brands.map((brand) => `<label class="filter-check"><input class="filter-input" type="checkbox" data-filter-brand="${escapeHTML(brand)}" ${selectedBrands.has(brand) ? "checked" : ""}>${escapeHTML(brand)}</label>`).join("")}</div>
       </details>` : ""}
-      <details class="filter-group" open>
+      ${availableCategories.length ? `<details class="filter-group" open>
         <summary>Категория</summary>
-        <div class="filter-options">${Object.entries(categoryNames).map(([key, label]) => `<label class="filter-check"><input class="filter-input" type="checkbox" data-filter-category="${key}" ${selectedCategories.has(key) ? "checked" : ""}>${label}</label>`).join("")}</div>
-      </details>
-      <details class="filter-group" open>
+        <div class="filter-options">${availableCategories.map(([key, label]) => `<label class="filter-check"><input class="filter-input" type="checkbox" data-filter-category="${key}" ${selectedCategories.has(key) ? "checked" : ""}>${label}</label>`).join("")}</div>
+      </details>` : ""}
+      ${availableColors.length ? `<details class="filter-group" open>
         <summary>Цвет</summary>
         <div class="filter-options">
-          <div class="filter-color-list">${Object.entries(colorNames).map(([color, label]) => `<button class="filter-color" type="button" data-filter-color="${color}" aria-label="${label}" aria-pressed="${selectedColors.has(color)}" style="--swatch:${color}"></button>`).join("")}</div>
+          <div class="filter-color-list">${availableColors.map(([color, label]) => `<button class="filter-color" type="button" data-filter-color="${color}" aria-label="${label}" aria-pressed="${selectedColors.has(color)}" style="--swatch:${color}"></button>`).join("")}</div>
           <span class="muted" style="font-size:11px">${selectedColors.size ? `${selectedColors.size} выбрано` : "Выберите один или несколько"}</span>
         </div>
-      </details>
+      </details>` : ""}
       <details class="filter-group" open>
         <summary>Цена, ₽</summary>
         <div class="filter-options">
@@ -681,16 +688,8 @@
                 <option value="name" ${state.catalog.sort === "name" ? "selected" : ""}>По названию</option>
               </select>
             </label>
-            <div class="catalog-grid-options" role="group" aria-label="Количество колонок">
-              <button type="button" data-grid-columns="3" aria-label="3 колонки" aria-pressed="${state.catalog.columns === 3}">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="5" height="16"/><rect x="9.5" y="4" width="5" height="16"/><rect x="16" y="4" width="5" height="16"/></svg>
-              </button>
-              <button type="button" data-grid-columns="4" aria-label="4 колонки" aria-pressed="${state.catalog.columns === 4}">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="3.5" height="16"/><rect x="8" y="4" width="3.5" height="16"/><rect x="13" y="4" width="3.5" height="16"/><rect x="18" y="4" width="3.5" height="16"/></svg>
-              </button>
-            </div>
           </div>
-          <div class="catalog-products ${state.catalog.columns === 4 ? "is-four-columns" : ""}">${sorted.length ? sorted.map(productCard).join("") : `<div class="empty-state"><h2>Ничего не найдено</h2><p>Попробуйте изменить запрос или сбросить фильтры.</p><button class="button button--outline button--small" type="button" data-filter-reset>Сбросить фильтры</button></div>`}</div>
+          <div class="catalog-products">${sorted.length ? sorted.map(productCard).join("") : `<div class="empty-state"><h2>Ничего не найдено</h2><p>Попробуйте изменить запрос или сбросить фильтры.</p><button class="button button--outline button--small" type="button" data-filter-reset>Сбросить фильтры</button></div>`}</div>
           <div class="brand-catalog-promo">
             <img src="assets/balenciaga/lookbook-carry-all-02.jpg" alt="" loading="lazy">
             <div><span class="eyebrow">BALENCIAGA</span><p>Откройте отдельную коллекцию бренда.</p></div>
@@ -727,7 +726,7 @@
       </aside>`;
   }
 
-  function productGalleryMarkup(product, color) {
+  function productGalleryMarkup(product) {
     if (product.videoUrl) {
       const fallbackImage = product.videoFallbackImage || product.images[0];
       return `<div class="product-gallery" aria-label="Фото и видео товара">
@@ -754,15 +753,9 @@
     }
     return `<div class="product-gallery" aria-label="Изображения товара">
       <div class="product-gallery__main">
-        ${bagArt(product.type, color, product.background)}
+        ${productVisual(product, 0, `${product.name} — фотографии пока не добавлены`)}
         ${product.badge ? `<span class="product-gallery__badge">${escapeHTML(product.badge)}</span>` : ""}
-        <button class="product-gallery__zoom" type="button" data-gallery-zoom aria-label="Увеличить изображение">${icons.search}</button>
-        <span class="product-gallery__count">1 / 5</span>
       </div>
-      <div class="product-gallery__tile">${bagArt(product.type, color, "#e4ddd2")}</div>
-      <div class="product-gallery__tile">${bagArt(product.type, color, "#ded6ca")}</div>
-      <div class="product-gallery__tile product-gallery__video">${bagArt(product.type, color, "#e8e2d8")}<button type="button" data-product-video aria-label="Запустить видеообзор">${icons.play}</button></div>
-      <div class="product-gallery__tile">${bagArt(product.type, color, "#e1dad0")}</div>
     </div>`;
   }
 
@@ -807,7 +800,7 @@
     return `<div class="wrap">
       <nav class="breadcrumb" aria-label="Хлебные крошки"><a href="index.html">Главная</a><span aria-hidden="true">/</span><a href="catalog.html">Каталог</a><span aria-hidden="true">/</span><span aria-current="page">${escapeHTML(product.name)}</span></nav>
       <div class="product-detail">
-        ${productGalleryMarkup(product, color)}
+        ${productGalleryMarkup(product)}
         <section class="product-info">
           <span class="eyebrow">${product.brand ? escapeHTML(product.brand) : ""}${categoryLabel ? `${product.brand ? " · " : ""}${escapeHTML(categoryLabel)}` : ""}${product.variantLabel ? ` · ${escapeHTML(product.variantLabel)}` : ""}</span>
           <h1>${escapeHTML(product.name)}</h1>
@@ -959,7 +952,7 @@
     return `<div class="wrap"><nav class="breadcrumb" aria-label="Хлебные крошки"><a href="index.html">Главная</a><span aria-hidden="true">/</span><span aria-current="page">О бренде</span></nav>
       <section class="editorial-hero reveal">
         <div class="editorial-hero__copy"><span class="eyebrow">История PalBag</span><h1>Сумки без лишнего</h1><p>Мы создаём вещи, которым не нужно громко заявлять о себе. Достаточно хорошей формы, честного материала и внимания к деталям.</p></div>
-        <div class="editorial-hero__art">${bagArt("tote", "#1c1b1a", "#e9e3da")}</div>
+        <div class="editorial-hero__art"><img src="assets/balenciaga/lookbook-carry-all-02.jpg" alt="BALENCIAGA Bel Air Carry All Bag" loading="lazy" decoding="async"></div>
       </section>
       <section class="section reveal"><div class="wrap editorial-statement"><span class="eyebrow">Наша идея</span><p>Мы делаем вещи, которые остаются. В гардеробе, в памяти, в повседневной жизни.</p></div></section>
       <section class="section--compact wrap reveal"><span class="eyebrow">Во всём есть смысл</span><h2 class="section-title" style="margin-top:12px">Наши принципы</h2>
@@ -969,7 +962,7 @@
           <article class="principle"><h3>Забота</h3><p>Продумываем посадку, вес и каждую мелочь внутри. Чтобы красивой сумкой было удобно пользоваться.</p></article>
         </div>
       </section>
-      <section class="section wrap reveal"><div class="story-band"><div class="story-band__art">${bagArt("shoulder", "#6d6a58", "#e4e3dc")}</div><div class="story-band__copy"><span class="eyebrow">Создано на каждый день</span><h2 class="section-title">Познакомьтесь с коллекцией</h2><p class="lead">Найдите форму, которая подходит именно вам.</p><a class="button" href="catalog.html">Открыть каталог ${icons.arrow}</a></div></div></section>
+      <section class="section wrap reveal"><div class="story-band"><div class="story-band__art"><img src="assets/saint-laurent/ysl-soft-niki-01.jpeg" alt="YSL Soft Niki Medium in Lambskin" loading="lazy" decoding="async"></div><div class="story-band__copy"><span class="eyebrow">Создано на каждый день</span><h2 class="section-title">Познакомьтесь с коллекцией</h2><p class="lead">Найдите форму, которая подходит именно вам.</p><a class="button" href="catalog.html">Открыть каталог ${icons.arrow}</a></div></div></section>
     </div>`;
   }
 
@@ -1376,9 +1369,6 @@
       state.selectedColor = color.dataset.selectColor;
       const id = new URLSearchParams(location.search).get("id");
       const product = productMap.get(id) || products[0];
-      document.querySelectorAll(".product-gallery .bag-scene").forEach((scene) => {
-        scene.style.setProperty("--bag-color", state.selectedColor);
-      });
       document.querySelectorAll("[data-select-color]").forEach((button) => {
         const selected = button === color;
         button.classList.toggle("swatch--selected", selected);
@@ -1412,12 +1402,6 @@
     }
     if (target.closest("[data-filter-close]")) return closeFilterDrawer();
     if (target.closest("[data-filter-reset]")) return resetFilters();
-    const gridColumns = target.closest("[data-grid-columns]");
-    if (gridColumns) {
-      state.catalog.columns = Number(gridColumns.dataset.gridColumns) === 4 ? 4 : 3;
-      render();
-      return;
-    }
     if (target.closest("[data-filter-apply]")) {
       updateCatalogFilters();
       state.drawerOpen = false;
